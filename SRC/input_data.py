@@ -1,18 +1,4 @@
-# Copyright 2017 The TensorFlow Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-"""Model definitions for simple speech recognition.
+"""Input data setting definitions for speech quality assessment.
 
 """
 from __future__ import absolute_import
@@ -136,7 +122,8 @@ class AudioProcessor(object):
   """Handles loading, partitioning, and preparing audio training data."""
 
   #def __init__(self, data_url, data_dir, validation_percentage, testing_percentage, model_settings):
-  def __init__(self, data_dir, validation_percentage, testing_percentage, model_settings):
+  def __init__(self, data_dir, validation_percentage, 
+                    testing_percentage, feature_type, model_settings):
     self.data_dir = data_dir
     # self.maybe_download_and_extract_dataset(data_url, data_dir)
     self.prepare_data_index(validation_percentage,testing_percentage)
@@ -213,7 +200,7 @@ class AudioProcessor(object):
 
     # Make sure the shuffling.
     self.data_index = {'validation': [], 'testing': [], 'training': []}
-        # Get all subfolders
+    # Get all subfolders
     database = [x[0] for x in os.walk(self.data_dir)]
     if len(database) > 1:
       del database[0]
@@ -232,6 +219,9 @@ class AudioProcessor(object):
     # Make sure the ordering is random.
     for set_index in ['validation', 'testing', 'training']:
       random.shuffle(self.data_index[set_index])
+
+  def get_set_sizes(self):
+    return len(self.data_index['training']), len(self.data_index['validation']), len(self.data_index['testing'])
 
   def prepare_processing_graph(self, model_settings):
     """Builds a TensorFlow graph to apply the input distortions.
@@ -267,13 +257,13 @@ class AudioProcessor(object):
                                  self.time_shift_offset_placeholder_,
                                  [desired_samples, -1])
     # Run the spectrogram and MFCC ops to get a 2D 'fingerprint' of the audio.
-    spectrogram = contrib_audio.audio_spectrogram(
+    self.spectrogram = contrib_audio.audio_spectrogram(
         sliced_foreground,
         window_size=model_settings['window_size_samples'],
         stride=model_settings['window_stride_samples'],
         magnitude_squared=True)
     self.mfcc_ = contrib_audio.mfcc(
-        spectrogram,
+        self.spectrogram,
         wav_decoder.sample_rate,
         dct_coefficient_count=model_settings['dct_coefficient_count'])
 
@@ -350,48 +340,3 @@ class AudioProcessor(object):
       scores[i - offset] = sample['score']
     return data, scores
 
-  def get_unprocessed_data(self, how_many, model_settings, mode):
-    """Retrieve sample data for the given partition, with no transformations.
-
-    Args:
-      how_many: Desired number of samples to return. -1 means the entire
-        contents of this partition.
-      model_settings: Information about the current model being trained.
-      mode: Which partition to use, must be 'training', 'validation', or
-        'testing'.
-
-    Returns:
-      List of sample data for the samples, and list of labels in one-hot form.
-    """
-    candidates = self.data_index[mode]
-    if how_many == -1:
-      sample_count = len(candidates)
-    else:
-      sample_count = how_many
-    desired_samples = model_settings['desired_samples']
-    words_list = self.words_list
-    data = np.zeros((sample_count, desired_samples))
-    labels = []
-    with tf.Session(graph=tf.Graph()) as sess:
-      wav_filename_placeholder = tf.placeholder(tf.string, [])
-      wav_loader = io_ops.read_file(wav_filename_placeholder)
-      wav_decoder = contrib_audio.decode_wav(
-          wav_loader, desired_channels=1, desired_samples=desired_samples)
-      foreground_volume_placeholder = tf.placeholder(tf.float32, [])
-      scaled_foreground = tf.multiply(wav_decoder.audio,
-                                      foreground_volume_placeholder)
-      for i in range(sample_count):
-        if how_many == -1:
-          sample_index = i
-        else:
-          sample_index = np.random.randint(len(candidates))
-        sample = candidates[sample_index]
-        input_dict = {wav_filename_placeholder: sample['file']}
-        if sample['label'] == SILENCE_LABEL:
-          input_dict[foreground_volume_placeholder] = 0
-        else:
-          input_dict[foreground_volume_placeholder] = 1
-        data[i, :] = sess.run(scaled_foreground, feed_dict=input_dict).flatten()
-        label_index = self.word_to_index[sample['label']]
-        labels.append(words_list[label_index])
-    return data, labels
