@@ -25,7 +25,7 @@ FLAGS = None
 
 def main(_):
 
-  # We want to see all the logging messages for this tutorial.
+  # We want to see all the logging messages
   tf.logging.set_verbosity(tf.logging.INFO)
 
   # Start a new TensorFlow session.
@@ -39,6 +39,7 @@ def main(_):
       FLAGS.clip_duration_ms, 
       FLAGS.window_size_ms,
       FLAGS.window_stride_ms, 
+      FLAGS.feature_used,
       FLAGS.dct_coefficient_count,
       FLAGS.conv_layers,
       FLAGS.filter_width,
@@ -62,8 +63,14 @@ def main(_):
   print("Validation length: " + str(val_len))
   print("Testing length: " + str(test_len))
 
+  #indexes = audio_processor.get_testing_indexes()
+  #with open(FLAGS.summaries_dir + '/' + "testint_set_indexes" + '.txt', 'w') as testIndFile:
+  #  testIndFile.write(str(indexes))
+  #return 0
+
   fingerprint_size = model_settings['fingerprint_size']
-  time_shift_samples = int((FLAGS.time_shift_ms * FLAGS.sample_rate) / 1000)
+  # time_shift_samples = int((FLAGS.time_shift_ms * FLAGS.sample_rate) / 1000)
+
   # Figure out the learning rates for each training phase. Since it's often
   # effective to have high learning rates at the start of training, followed by
   # lower levels towards the end, the number of steps and learning rates can be
@@ -111,6 +118,7 @@ def main(_):
   # cross_entropy_mean = tf.reduce_mean(
   #     tf.nn.softmax_cross_entropy_with_logits(
   #         labels=ground_truth_input, logits=estimator))
+
   root_mean_squared_error = tf.sqrt(tf.reduce_mean(tf.squared_difference(ground_truth_input, estimator)))
   tf.summary.scalar('rmse', root_mean_squared_error)
 
@@ -119,6 +127,11 @@ def main(_):
         tf.float32, [], name='learning_rate_input')
     train_step = tf.train.GradientDescentOptimizer(
         learning_rate_input).minimize(root_mean_squared_error)
+    # train_step = tf.train.AdadeltaOptimizer(learning_rate_input,
+    #                                         rho=0.95,
+    #                                         epsilon=1e-08,
+    #                                         use_locking=False,
+    #                                         name='Adadelta').minimize(root_mean_squared_error)
 
   #global_step = tf.contrib.framework.get_or_create_global_step()
   global_step = tf.train.get_or_create_global_step()
@@ -128,8 +141,7 @@ def main(_):
 
   # Merge all the summaries and write them out to /tmp/retrain_logs (by default)
   merged_summaries = tf.summary.merge_all()
-  train_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/train',
-                                       sess.graph)
+  train_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/train',sess.graph)
   validation_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/validation')
 
   tf.global_variables_initializer().run()
@@ -164,8 +176,11 @@ def main(_):
         learning_rate_value = learning_rates_list[i]
         break
     # Pull the audio samples we'll use for training.
+    # train_fingerprints, train_ground_truth = audio_processor.get_data(
+    #     FLAGS.batch_size, 0, model_settings, time_shift_samples, 'training', sess)
+
     train_fingerprints, train_ground_truth = audio_processor.get_data(
-        FLAGS.batch_size, 0, model_settings, time_shift_samples, 'training', sess)
+        FLAGS.batch_size, 0, model_settings, 'training', sess)
 
     # Run the graph with this batch of training data.
     train_summary = None
@@ -183,7 +198,7 @@ def main(_):
               fingerprint_input: train_fingerprints,
               ground_truth_input: train_ground_truth,
               learning_rate_input: learning_rate_value,
-              phase_train: True,
+              # phase_train: True,
               dropout_prob: 0.5
           })
     elif FLAGS.model_architecture == 'conv2':
@@ -222,8 +237,11 @@ def main(_):
       print("***************** Validation *****************")
 
       for i in xrange(0, set_size, FLAGS.batch_size):
+        # validation_fingerprints, validation_ground_truth = (
+        #     audio_processor.get_data(FLAGS.batch_size, i, model_settings, 0.0,
+        #                              'validation', sess))
         validation_fingerprints, validation_ground_truth = (
-            audio_processor.get_data(FLAGS.batch_size, i, model_settings, 0.0,
+            audio_processor.get_data(FLAGS.batch_size, i, model_settings,
                                      'validation', sess))
 
         # Run a validation step and capture training summaries for TensorBoard
@@ -240,7 +258,7 @@ def main(_):
               feed_dict={
                   fingerprint_input: validation_fingerprints,
                   ground_truth_input: validation_ground_truth,
-                  phase_train: True,
+                  # phase_train: False,
                   dropout_prob: 0.5
               })
 
@@ -254,7 +272,7 @@ def main(_):
               feed_dict={
                   fingerprint_input: validation_fingerprints,
                   ground_truth_input: validation_ground_truth,
-                  phase_train: True
+                  phase_train: False
               })
 
         validation_writer.add_summary(validation_summary, training_step)
@@ -285,8 +303,10 @@ def main(_):
   tf.logging.info('set_size=%d', set_size)
   total_rmse = 0
   for i in xrange(0, set_size, FLAGS.batch_size):
+    # test_fingerprints, test_ground_truth = audio_processor.get_data(
+    #     FLAGS.batch_size, i, model_settings, 0.0, 'testing', sess)
     test_fingerprints, test_ground_truth = audio_processor.get_data(
-        FLAGS.batch_size, i, model_settings, 0.0, 'testing', sess)
+        FLAGS.batch_size, i, model_settings, 'testing', sess)
 
     testing_summary = None
     test_rmse = None
@@ -297,7 +317,7 @@ def main(_):
           feed_dict={
               fingerprint_input: test_fingerprints,
               ground_truth_input: test_ground_truth,
-              phase_train: True,
+              # phase_train: False,
               dropout_prob: 1.0
           })
 
@@ -308,7 +328,7 @@ def main(_):
           feed_dict={
               fingerprint_input: test_fingerprints,
               ground_truth_input: test_ground_truth,
-                  phase_train: True
+                  phase_train: False
           })
 
     batch_size = min(FLAGS.batch_size, set_size - i)
@@ -377,39 +397,20 @@ if __name__ == '__main__':
   parser.add_argument(
       '--data_dir',
       type=str,
-      default='/home/rqa/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/DATABASE/speech_dataset',
+      default='../database/speech_dataset',
       help="""\
       Where to download the speech training data to.
       """)
   parser.add_argument(
       '--summaries_dir',
       type=str,
-      default='/home/rqa/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/Resultados/retrain_logs',
+      default='../result/retrain_logs',
       help='Where to save summary logs for TensorBoard.')
   parser.add_argument(
       '--train_dir',
       type=str,
-      default='/home/rqa/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/Resultados/speech_quality_evaluation_train',
+      default='../result/speech_quality_evaluation_train',
       help='Directory to write event logs and checkpoint.')
-
-#Signal
-  parser.add_argument(
-      '--time_shift_ms',
-      type=float,
-      default=0.0,
-      help="""\
-      Range to randomly shift the training audio by in time.
-      """)
-  parser.add_argument(
-      '--sample_rate',
-      type=int,
-      default=16000,
-      help='Expected sample rate of the wavs')
-  parser.add_argument(
-      '--clip_duration_ms',
-      type=int,
-      default=8000,
-      help='Expected duration in milliseconds of the wavs')
 
 #Learning
   parser.add_argument(
@@ -438,6 +439,25 @@ if __name__ == '__main__':
       default='0.01,0.001',
       help='How large a learning rate to use when training.')
 
+#Signal
+  # parser.add_argument(
+  #     '--time_shift_ms',
+  #     type=float,
+  #     default=0.0,
+  #     help="""\
+  #     Range to randomly shift the training audio by in time.
+  #     """)
+  parser.add_argument(
+      '--sample_rate',
+      type=int,
+      default=16000,
+      help='Expected sample rate of the wavs')
+  parser.add_argument(
+      '--clip_duration_ms',
+      type=int,
+      default=8000,
+      help='Expected duration in milliseconds of the wavs')
+
 #Spectrogram
   parser.add_argument(
       '--window_size_ms',
@@ -447,7 +467,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--window_stride_ms',
       type=float,
-      default=10.0,
+      default=15.0,
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--feature_used',
@@ -464,7 +484,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default='conv2',
+      default='conv',
       help='What model architecture to use')
   parser.add_argument(
       '--conv_layers',
@@ -474,7 +494,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--filter_width',
       type=int,
-      default=5,
+      default=9,
       help='What model architecture to use')
   parser.add_argument(
       '--filter_count',
@@ -489,7 +509,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--pooling',
       type=str,
-      default='avg',
+      default='max',
       help='Number of units in hidden layer 1.')
   
 #FC

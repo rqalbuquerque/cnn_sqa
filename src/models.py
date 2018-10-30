@@ -14,6 +14,7 @@ def prepare_model_settings(sample_rate,
                            clip_duration_ms,
                            window_size_ms, 
                            window_stride_ms,
+                           feature_used,
                            dct_coefficient_count,
                            conv_layers,
                            filter_width,
@@ -43,6 +44,7 @@ def prepare_model_settings(sample_rate,
     spectrogram_length = 0
   else:
     spectrogram_length = 1 + int(length_minus_window / window_stride_samples)
+
   fingerprint_size = dct_coefficient_count * spectrogram_length
   return {
       'desired_samples': desired_samples,
@@ -51,6 +53,7 @@ def prepare_model_settings(sample_rate,
       'fingerprint_size': fingerprint_size,
       'sample_rate': sample_rate,
       'spectrogram_length': spectrogram_length,
+      'feature_used': feature_used,
       'dct_coefficient_count': dct_coefficient_count,
       'conv_layers': conv_layers,
       'filter_width': filter_width,
@@ -117,6 +120,21 @@ def load_variables_from_checkpoint(sess, start_checkpoint):
   saver.restore(sess, start_checkpoint)
 
 
+def apply_pooling(inputTensor, type, ksize, strides, padding, filter_count):
+
+  if type == 'max':
+    pooling = tf.nn.max_pool(inputTensor, ksize, strides, padding)
+  elif type == 'avg':
+    pooling = tf.nn.avg_pool(inputTensor, ksize, strides, padding)
+
+  conv_shape = pooling.get_shape()
+  conv_output_width = conv_shape[2]
+  conv_output_height = conv_shape[1]
+  conv_element_count = int(conv_output_width * conv_output_height * filter_count)
+  flattened = tf.reshape(pooling,[-1, conv_element_count])
+  return conv_element_count, flattened
+
+
 def create_conv_model(fingerprint_input, model_settings, is_training):
   """Builds a standard convolutional model.
 
@@ -162,6 +180,7 @@ def create_conv_model(fingerprint_input, model_settings, is_training):
   first_filter_height = model_settings['filter_width']
   first_filter_count = model_settings['filter_count']
 
+  # conv
   first_weights = tf.Variable(
       tf.truncated_normal(
           [first_filter_height, first_filter_width, 1, first_filter_count],
@@ -175,25 +194,67 @@ def create_conv_model(fingerprint_input, model_settings, is_training):
   else:
     first_dropout = first_relu
 
-  if model_settings['pooling'] == 'max':
-    first_pooling = tf.nn.max_pool(first_dropout, [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
-  elif model_settings['pooling'] == 'avg':
-    first_pooling = tf.nn.avg_pool(first_dropout, [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
+  # if model_settings['conv_layers'] == 2:
+    # second conv
+  second_filter_width = max(int(first_filter_width/2),5)
+  second_filter_height = max(int(first_filter_height/2),5)
+  second_filter_count = first_filter_count
+  second_weights = tf.Variable(
+      tf.truncated_normal(
+          [
+              second_filter_height, second_filter_width, first_filter_count,
+              second_filter_count
+          ],
+          stddev=0.01))
+  second_bias = tf.Variable(tf.zeros([second_filter_count]))
+  second_conv = tf.nn.conv2d(first_dropout, second_weights, [1, stride, stride, 1],
+                            'SAME') + second_bias
+  second_relu = tf.nn.relu(second_conv)
+  if is_training:
+    second_dropout = tf.nn.dropout(second_relu, dropout_prob)
+  else:
+    second_dropout = second_relu
 
-  first_conv_shape = first_pooling.get_shape()
-  first_conv_output_width = first_conv_shape[2]
-  first_conv_output_height = first_conv_shape[1]
-  first_conv_element_count = int(
-      first_conv_output_width * first_conv_output_height *
-      first_filter_count)
-  flattened_first_conv = tf.reshape(first_pooling,
-                                     [-1, first_conv_element_count])
+  # if model_settings['conv_layers'] == 3:
+    # third conv
+  third_filter_width = max(int(first_filter_width/3),3)
+  third_filter_height = max(int(first_filter_height/3),3)
+  third_filter_count = first_filter_count
+  third_weights = tf.Variable(
+      tf.truncated_normal(
+          [
+              third_filter_height, third_filter_height, second_filter_count,
+              third_filter_count
+          ],
+          stddev=0.01))
+  third_bias = tf.Variable(tf.zeros([second_filter_count]))
+  third_conv = tf.nn.conv2d(second_dropout, third_weights, [1, stride, stride, 1],
+                            'SAME') + third_bias
+  third_relu = tf.nn.relu(second_conv)
+  if is_training:
+    third_dropout = tf.nn.dropout(third_relu, dropout_prob)
+  else:
+    third_dropout = third_relu
+
+  # pooling
+  if model_settings['pooling'] == 'max':
+    pooling = tf.nn.max_pool(third_dropout, [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
+  elif model_settings['pooling'] == 'avg':
+    pooling = tf.nn.avg_pool(third_dropout, [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
+
+  pooling_shape = pooling.get_shape()
+  pooling_output_width = pooling_shape[2]
+  pooling_output_height = pooling_shape[1]
+  pooling_element_count = int(
+      pooling_output_width * pooling_output_height * third_filter_count)
+  flattened_pooling = tf.reshape(pooling,[-1, pooling_element_count])
+
   # first full-connected layer
   first_fc_weights = tf.Variable(
       tf.truncated_normal(
-          [first_conv_element_count, hidden_units], stddev=0.01), name='weights')
+          [pooling_element_count, hidden_units], stddev=0.01), name='weights')
   first_fc_bias = tf.Variable(tf.zeros([hidden_units]), name='biases')
-  final_fc = tf.nn.relu(tf.matmul(flattened_first_conv, first_fc_weights) + first_fc_bias)
+  final_fc = tf.nn.relu(tf.matmul(flattened_pooling, first_fc_weights) + first_fc_bias)
 
   # regression 
   final_fc_weights = tf.Variable(
@@ -222,22 +283,22 @@ def batch_norm(x, n_out, phase_train):
         normed:      batch-normalized maps
     """
     with tf.variable_scope('bn'):
-        beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
-                                     name='beta', trainable=True)
-        gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
-                                      name='gamma', trainable=True)
-        batch_mean, batch_var = tf.nn.moments(x, [0,1,2], name='moments')
-        ema = tf.train.ExponentialMovingAverage(decay=0.5)
+      beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
+                                   name='beta', trainable=True)
+      gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
+                                    name='gamma', trainable=True)
+      batch_mean, batch_var = tf.nn.moments(x, [0,1,2], name='moments')
+      ema = tf.train.ExponentialMovingAverage(decay=0.5)
 
-        def mean_var_with_update():
-            ema_apply_op = ema.apply([batch_mean, batch_var])
-            with tf.control_dependencies([ema_apply_op]):
-                return tf.identity(batch_mean), tf.identity(batch_var)
+      def mean_var_with_update():
+          ema_apply_op = ema.apply([batch_mean, batch_var])
+          with tf.control_dependencies([ema_apply_op]):
+              return tf.identity(batch_mean), tf.identity(batch_var)
 
-        mean, var = tf.cond(phase_train,
-                            mean_var_with_update,
-                            lambda: (ema.average(batch_mean), ema.average(batch_var)))
-        normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
+      mean, var = tf.cond(phase_train,
+                          mean_var_with_update,
+                          lambda: (ema.average(batch_mean), ema.average(batch_var)))
+      normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
     return normed
 
 
@@ -274,7 +335,6 @@ def create_conv2_model(fingerprint_input, model_settings):
           v
     [FullConected] (1 or 2 layers)
 
-
   Args:
     fingerprint_input: TensorFlow node that will output audio feature vectors.
     model_settings: Dictionary of information about the model.
@@ -309,56 +369,57 @@ def create_conv2_model(fingerprint_input, model_settings):
   first_conv = tf.nn.conv2d(fingerprint_4d, first_weights, [1, stride, stride, 1],
                             'SAME') + first_bias
   first_norm_conv = batch_norm(first_conv, first_filter_count, phase_train)
-  first_relu = tf.nn.relu(first_norm_conv)
+  final_relu = tf.nn.relu(first_norm_conv)
 
-  # second conv
-  second_filter_width = max(int(first_filter_width/2),3)
-  second_filter_height = max(int(first_filter_height/2),3)
-  second_filter_count = first_filter_count
-  second_weights = tf.Variable(
-      tf.truncated_normal(
-          [
-              second_filter_height, second_filter_width, first_filter_count,
-              second_filter_count
-          ],
-          stddev=0.01))
-  second_bias = tf.Variable(tf.zeros([second_filter_count]))
-  second_conv = tf.nn.conv2d(first_relu, second_weights, [1, stride, stride, 1],
-                            'SAME') + second_bias
-  second_norm_conv = batch_norm(second_conv, second_filter_count, phase_train)
-  second_relu = tf.nn.relu(second_norm_conv)
+  if model_settings['conv_layers'] == 2:
 
-  # third conv
-  third_filter_width = max(int(first_filter_width/3),2)
-  third_filter_height = max(int(first_filter_height/3),2)
-  third_filter_count = first_filter_count
-  third_weights = tf.Variable(
-      tf.truncated_normal(
-          [
-              third_filter_height, third_filter_width, second_filter_count,
-              third_filter_count
-          ],
-          stddev=0.01))
-  third_bias = tf.Variable(tf.zeros([third_filter_count]))
-  third_conv = tf.nn.conv2d(second_relu, third_weights, [1, stride, stride, 1],
-                          'SAME') + third_bias
-  third_norm_conv = batch_norm(third_conv, third_filter_count, phase_train)
-  final_relu = tf.nn.relu(third_norm_conv)
+    # second conv
+    second_filter_width = max(int(first_filter_width/2),3)
+    second_filter_height = max(int(first_filter_height/2),3)
+    second_filter_count = first_filter_count
+    second_weights = tf.Variable(
+        tf.truncated_normal(
+            [
+                second_filter_height, second_filter_width, first_filter_count,
+                second_filter_count
+            ],
+            stddev=0.01))
+    second_bias = tf.Variable(tf.zeros([second_filter_count]))
+    second_conv = tf.nn.conv2d(final_relu, second_weights, [1, stride, stride, 1],
+                              'SAME') + second_bias
+    second_norm_conv = batch_norm(second_conv, second_filter_count, phase_train)
+    final_relu = tf.nn.relu(second_norm_conv)
+
+  if model_settings['conv_layers'] == 3:
+
+    # third conv
+    third_filter_width = max(int(first_filter_width/3),2)
+    third_filter_height = max(int(first_filter_height/3),2)
+    third_filter_count = first_filter_count
+    third_weights = tf.Variable(
+        tf.truncated_normal(
+            [
+                third_filter_height, third_filter_width, first_filter_count,
+                third_filter_count
+            ],
+            stddev=0.01))
+    third_bias = tf.Variable(tf.zeros([third_filter_count]))
+    third_conv = tf.nn.conv2d(final_relu, third_weights, [1, stride, stride, 1],
+                            'SAME') + third_bias
+    third_norm_conv = batch_norm(third_conv, third_filter_count, phase_train)
+    final_relu = tf.nn.relu(third_norm_conv)
 
   # pooling
+  flattened_conv = []
   if model_settings['pooling'] == 'max':
-    conv_pooling = tf.nn.max_pool(final_relu, [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
+    conv_element_count, flattened_conv = apply_pooling(final_relu, 'max', [1, 2, 2, 1], [1, 2, 2, 1], 'SAME', first_filter_count)
   elif model_settings['pooling'] == 'avg':
-    conv_pooling = tf.nn.avg_pool(final_relu, [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
-
-  conv_shape = conv_pooling.get_shape()
-  conv_output_width = conv_shape[2]
-  conv_output_height = conv_shape[1]
-  conv_element_count = int(
-      conv_output_width * conv_output_height *
-      first_filter_count)
-  flattened_conv = tf.reshape(conv_pooling,
-                                  [-1, conv_element_count])
+    conv_element_count, flattened_conv = apply_pooling(final_relu, 'avg', [1, 2, 2, 1], [1, 2, 2, 1], 'SAME', first_filter_count)
+  elif model_settings['pooling'] == 'max,avg' or model_settings['pooling'] == 'avg,max':
+    element_count_max, flattened_max = apply_pooling(final_relu, 'max', [1, 2, 2, 1], [1, 2, 2, 1], 'SAME', first_filter_count)
+    element_count_avg, flattened_avg = apply_pooling(final_relu, 'avg', [1, 2, 2, 1], [1, 2, 2, 1], 'SAME', first_filter_count)
+    conv_element_count = element_count_max + element_count_avg
+    flattened_conv = tf.concat([flattened_max, flattened_avg], 1)
 
   # first full-connected layer
   first_fc_weights = tf.Variable(

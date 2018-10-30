@@ -17,6 +17,7 @@ import sys
 import numpy as np
 from six.moves import urllib
 from six.moves import xrange  # pylint: disable=redefined-builtin
+import librosa
 import tensorflow as tf
 
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
@@ -223,6 +224,9 @@ class AudioProcessor(object):
   def get_set_sizes(self):
     return len(self.data_index['training']), len(self.data_index['validation']), len(self.data_index['testing'])
 
+  def get_testing_indexes(self):
+    return self.data_index['testing']
+
   def prepare_processing_graph(self, model_settings):
     """Builds a TensorFlow graph to apply the input distortions.
 
@@ -246,26 +250,55 @@ class AudioProcessor(object):
     wav_loader = io_ops.read_file(self.wav_filename_placeholder_)
     wav_decoder = contrib_audio.decode_wav(
         wav_loader, desired_channels=1, desired_samples=desired_samples)
+    
     # Shift the sample's start position, and pad any gaps with zeros.
-    self.time_shift_padding_placeholder_ = tf.placeholder(tf.int32, [2, 2])
-    self.time_shift_offset_placeholder_ = tf.placeholder(tf.int32, [2])
-    padded_foreground = tf.pad(
-        wav_decoder.audio,
-        self.time_shift_padding_placeholder_,
-        mode='CONSTANT')
-    sliced_foreground = tf.slice(padded_foreground,
-                                 self.time_shift_offset_placeholder_,
-                                 [desired_samples, -1])
+    # self.time_shift_padding_placeholder_ = tf.placeholder(tf.int32, [2, 2])
+    # self.time_shift_offset_placeholder_ = tf.placeholder(tf.int32, [2])
+    # padded_foreground = tf.pad(
+    #     wav_decoder.audio,
+    #     self.time_shift_padding_placeholder_,
+    #     mode='CONSTANT')
+    # sliced_foreground = tf.slice(padded_foreground,
+    #                              self.time_shift_offset_placeholder_,
+    #                              [desired_samples, -1])
+
     # Run the spectrogram and MFCC ops to get a 2D 'fingerprint' of the audio.
+    # self.spectrogram = contrib_audio.audio_spectrogram(
+    #     sliced_foreground,
+    #     window_size=model_settings['window_size_samples'],
+    #     stride=model_settings['window_stride_samples'],
+    #     magnitude_squared=True)
+
     self.spectrogram = contrib_audio.audio_spectrogram(
-        sliced_foreground,
+        wav_decoder.audio,
         window_size=model_settings['window_size_samples'],
         stride=model_settings['window_stride_samples'],
         magnitude_squared=True)
-    self.mfcc_ = contrib_audio.mfcc(
-        self.spectrogram,
-        wav_decoder.sample_rate,
-        dct_coefficient_count=model_settings['dct_coefficient_count'])
+
+    self.feature = []
+    if model_settings['feature_used'] == 'spectrogram':
+      coeffic_count = max(model_settings['dct_coefficient_count'],128)
+      frames_count = self.spectrogram.shape[1]
+      self.feature = tf.slice(self.spectrogram,
+                              [0,0,0],
+                              [-1,frames_count,coeffic_count])
+    elif model_settings['feature_used'] == 'mfcc':
+      self.feature = contrib_audio.mfcc(
+          self.spectrogram,
+          wav_decoder.sample_rate,
+          dct_coefficient_count=model_settings['dct_coefficient_count'])
+      
+      # input()
+      # print(type(wav_decoder.audio.eval()))
+      # print(type(wav_decoder.sample_rate.eval()))
+      # print(type(model_settings['dct_coefficient_count']))
+      # input()
+
+      # self.feature = librosa.feature.mfcc(
+      #     y=wav_decoder.audio.eval(),
+      #     sr=wav_decoder.sample_rate.eval(),
+      #     n_mfcc=model_settings['dct_coefficient_count'])
+
 
   def set_size(self, mode):
     """Calculates the number of samples in the dataset partition.
@@ -278,7 +311,8 @@ class AudioProcessor(object):
     """
     return len(self.data_index[mode])
 
-  def get_data(self, how_many, offset, model_settings, time_shift, mode, sess):
+  # def get_data(self, how_many, offset, model_settings, time_shift, mode, sess):
+  def get_data(self, how_many, offset, model_settings, mode, sess):
     """Gather samples from the data set, applying transformations as needed.
 
     When the mode is 'training', a random selection of samples will be returned,
@@ -305,11 +339,13 @@ class AudioProcessor(object):
       sample_count = len(candidates)
     else:
       sample_count = max(0, min(how_many, len(candidates) - offset))
+    
     # Data and scores will be populated and returned.
     data = np.zeros((sample_count, model_settings['fingerprint_size']))
     scores = np.zeros((sample_count, 1))
     desired_samples = model_settings['desired_samples']
     pick_deterministically = (mode != 'training')
+
     # Use the processing graph we created earlier to repeatedly to generate the
     # final output sample data we'll use in training.
     for i in xrange(offset, offset + sample_count):
@@ -319,24 +355,30 @@ class AudioProcessor(object):
       else:
         sample_index = np.random.randint(len(candidates))
       sample = candidates[sample_index]
+     
       # If we're time shifting, set up the offset for this sample.
-      if time_shift > 0:
-        time_shift_amount = np.random.randint(-time_shift, time_shift)
-      else:
-        time_shift_amount = 0
-      if time_shift_amount > 0:
-        time_shift_padding = [[time_shift_amount, 0], [0, 0]]
-        time_shift_offset = [0, 0]
-      else:
-        time_shift_padding = [[0, -time_shift_amount], [0, 0]]
-        time_shift_offset = [-time_shift_amount, 0]
+      # if time_shift > 0:
+      #   time_shift_amount = np.random.randint(-time_shift, time_shift)
+      # else:
+      #   time_shift_amount = 0
+      # if time_shift_amount > 0:
+      #   time_shift_padding = [[time_shift_amount, 0], [0, 0]]
+      #   time_shift_offset = [0, 0]
+      # else:
+      #   time_shift_padding = [[0, -time_shift_amount], [0, 0]]
+      #   time_shift_offset = [-time_shift_amount, 0]
+      # input_dict = {
+      #     self.wav_filename_placeholder_: sample['file'],
+      #     self.time_shift_padding_placeholder_: time_shift_padding,
+      #     self.time_shift_offset_placeholder_: time_shift_offset,
+      # }
+
       input_dict = {
-          self.wav_filename_placeholder_: sample['file'],
-          self.time_shift_padding_placeholder_: time_shift_padding,
-          self.time_shift_offset_placeholder_: time_shift_offset,
+          self.wav_filename_placeholder_: sample['file']
       }
+
       # Run the graph to produce the output audio.
-      data[i - offset, :] = sess.run(self.mfcc_, feed_dict=input_dict).flatten()
+      data[i - offset, :] = sess.run(self.feature, feed_dict=input_dict).flatten()
       scores[i - offset] = sample['score']
     return data, scores
 
