@@ -123,11 +123,10 @@ class AudioProcessor(object):
   """Handles loading, partitioning, and preparing audio training data."""
 
   #def __init__(self, data_url, data_dir, validation_percentage, testing_percentage, model_settings):
-  def __init__(self, data_dir, validation_percentage, 
-                    testing_percentage, feature_type, model_settings):
+  def __init__(self, data_dir, validation_percentage, testing_percentage, feature_type, model_settings):
     self.data_dir = data_dir
     # self.maybe_download_and_extract_dataset(data_url, data_dir)
-    self.prepare_data_index(validation_percentage,testing_percentage)
+    self.prepare_data_index(validation_percentage, testing_percentage)
     self.prepare_processing_graph(model_settings)
 
   def maybe_download_and_extract_dataset(self, data_url, dest_directory):

@@ -1,13 +1,11 @@
 """Training definitions for speech quality assessment.
 
 """
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 from tabulate import tabulate
-import argparse
 import time
 import os.path
 import sys
@@ -18,12 +16,12 @@ import tensorflow as tf
 
 import input_data
 import models
+import config
 from tensorflow.python.platform import gfile
 
-FLAGS = None
 
-
-def main(_):
+def main(argv):
+  FLAGS = argv[0]
 
   # We want to see all the logging messages
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -75,14 +73,14 @@ def main(_):
   # effective to have high learning rates at the start of training, followed by
   # lower levels towards the end, the number of steps and learning rates can be
   # specified as comma-separated lists to define the rate at each stage. For
-  # example --how_many_training_steps=10000,3000 --learning_rate=0.001,0.0001
+  # example --training_steps=10000,3000 --learning_rate=0.001,0.0001
   # will run 13,000 training loops in total, with a rate of 0.001 for the first
   # 10,000, and 0.0001 for the final 3,000.
-  training_steps_list = list(map(int, FLAGS.how_many_training_steps.split(',')))
+  training_steps_list = list(map(int, FLAGS.training_steps.split(',')))
   learning_rates_list = list(map(float, FLAGS.learning_rate.split(',')))
   if len(training_steps_list) != len(learning_rates_list):
     raise Exception(
-        '--how_many_training_steps and --learning_rate must be equal length '
+        '--training_steps and --learning_rate must be equal length '
         'lists, but are %d and %d long instead' % (len(training_steps_list),
                                                    len(learning_rates_list)))
 
@@ -353,7 +351,7 @@ def main(_):
       ['testing_percentage', FLAGS.validation_percentage], 
       ['testing_size', test_len], 
       ['batch_size', FLAGS.batch_size], 
-      ['how_many_training_steps', FLAGS.how_many_training_steps], 
+      ['training_steps', FLAGS.training_steps], 
       ['learning_rate', FLAGS.learning_rate]], 
       headers=['Learning', ''], tablefmt='psql') + '\n')
     testFile.write(tabulate([['window_size_ms', FLAGS.window_size_ms], 
@@ -383,169 +381,6 @@ def main(_):
       ['Test', round(total_rmse,2)]], 
       headers=['Set', 'RMSE'], tablefmt='psql'))
 
-
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser()
-  # parser.add_argument(
-  #     '--data_url',
-  #     type=str,
-  #     # pylint: disable=line-too-long
-  #     default='http://download.tensorflow.org/data/speech_commands_v0.01.tar.gz',
-  #     # pylint: enable=line-too-long
-  #     help='Location of speech training data archive on the web.')
-#DIRs
-  parser.add_argument(
-      '--data_dir',
-      type=str,
-      default='../database/speech_dataset',
-      help="""\
-      Where to download the speech training data to.
-      """)
-  parser.add_argument(
-      '--summaries_dir',
-      type=str,
-      default='../result/retrain_logs',
-      help='Where to save summary logs for TensorBoard.')
-  parser.add_argument(
-      '--train_dir',
-      type=str,
-      default='../result/speech_quality_evaluation_train',
-      help='Directory to write event logs and checkpoint.')
-
-#Learning
-  parser.add_argument(
-      '--testing_percentage',
-      type=int,
-      default=10,
-      help='What percentage of wavs to use as a test set.')
-  parser.add_argument(
-      '--validation_percentage',
-      type=int,
-      default=10,
-      help='What percentage of wavs to use as a validation set.')
-  parser.add_argument(
-      '--batch_size',
-      type=int,
-      default=30,
-      help='How many items to train with at once')
-  parser.add_argument(
-      '--how_many_training_steps',
-      type=str,
-      default='5000,1000',
-      help='How many training loops to run')  
-  parser.add_argument(
-      '--learning_rate',
-      type=str,
-      default='0.01,0.001',
-      help='How large a learning rate to use when training.')
-
-#Signal
-  # parser.add_argument(
-  #     '--time_shift_ms',
-  #     type=float,
-  #     default=0.0,
-  #     help="""\
-  #     Range to randomly shift the training audio by in time.
-  #     """)
-  parser.add_argument(
-      '--sample_rate',
-      type=int,
-      default=16000,
-      help='Expected sample rate of the wavs')
-  parser.add_argument(
-      '--clip_duration_ms',
-      type=int,
-      default=8000,
-      help='Expected duration in milliseconds of the wavs')
-
-#Spectrogram
-  parser.add_argument(
-      '--window_size_ms',
-      type=float,
-      default=30.0,
-      help='How long each spectrogram timeslice is')
-  parser.add_argument(
-      '--window_stride_ms',
-      type=float,
-      default=15.0,
-      help='How long each spectrogram timeslice is')
-  parser.add_argument(
-      '--feature_used',
-      type=str,
-      default='mfcc',
-      help='How long each spectrogram timeslice is')
-  parser.add_argument(
-      '--dct_coefficient_count',
-      type=int,
-      default=40,
-      help='How many bins to use for the MFCC fingerprint')
-
-#CNN
-  parser.add_argument(
-      '--model_architecture',
-      type=str,
-      default='conv',
-      help='What model architecture to use')
-  parser.add_argument(
-      '--conv_layers',
-      type=int,
-      default=3,
-      help='What model architecture to use')
-  parser.add_argument(
-      '--filter_width',
-      type=int,
-      default=9,
-      help='What model architecture to use')
-  parser.add_argument(
-      '--filter_count',
-      type=int,
-      default=50,
-      help='What model architecture to use')
-  parser.add_argument(
-      '--stride',
-      type=int,
-      default=1,
-      help='What model architecture to use')
-  parser.add_argument(
-      '--pooling',
-      type=str,
-      default='max',
-      help='Number of units in hidden layer 1.')
-  
-#FC
-  parser.add_argument(
-      '--fc_layers',
-      type=int,
-      default=1,
-      help='Number of units in hidden layer 1.')
-  parser.add_argument(
-      '--hidden_units',
-      type=int,
-      default=400,
-      help='Number of units in hidden layer 1.')
-
-  parser.add_argument(
-      '--eval_step_interval',
-      type=int,
-      default=100,
-      help='How often to evaluate the training results.')
-  parser.add_argument(
-      '--save_step_interval',
-      type=int,
-      default=200,
-      help='Save model checkpoint every save_steps.')
-  parser.add_argument(
-      '--start_checkpoint',
-      type=str,
-      default='',
-      help='If specified, restore this pretrained model before any training.')
-
-
-  parser.add_argument(
-      '--check_nans',
-      type=bool,
-      default=False,
-      help='Whether to check for invalid numbers during processing')
-
-  FLAGS, unparsed = parser.parse_known_args()
-  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+  FLAGS, _unparsed = config.set_flags()
+  tf.app.run(main=main, argv=[FLAGS])
