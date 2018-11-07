@@ -134,7 +134,8 @@ def save_spectrogram_image(filename, outputname):
   spectrogram = contrib_audio.audio_spectrogram(
           waveform.audio,
           window_size=1024,
-          stride=64)
+          stride=128,
+          magnitude_squared=True)
 
   # Custom brightness
   brightness = tf.placeholder(tf.float32, shape=[])
@@ -148,7 +149,7 @@ def save_spectrogram_image(filename, outputname):
   expand_dims = tf.expand_dims(minimum, -1)
 
   # Resize the spectrogram to input size of the model
-  resize = tf.image.resize_bilinear(expand_dims, [512, 512])
+  resize = tf.image.resize_bilinear(expand_dims, [1024, 1024])
 
   # Remove the trailing dimension
   squeeze = tf.squeeze(resize, 0)

@@ -46,7 +46,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--training_steps',
       type=str,
-      default=configs.get('training_steps', '10,10'),
+      default=configs.get('training_steps', '5000,1000'),
       help='How many training loops to run')  
   parser.add_argument(
       '--learning_rate',
@@ -70,12 +70,12 @@ def set_flags(configs={}):
   parser.add_argument(
       '--window_size_ms',
       type=float,
-      default=configs.get('window_size_ms', 30.0),
+      default=configs.get('window_size_ms', 64.0),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--window_stride_ms',
       type=float,
-      default=configs.get('window_stride_ms', 15.0),
+      default=configs.get('window_stride_ms', 8.0),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--feature_used',
@@ -102,7 +102,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--filter_width',
       type=int,
-      default=configs.get('filter_width', 9),
+      default=configs.get('filter_width', 5),
       help='What model architecture to use')
   parser.add_argument(
       '--filter_count',
@@ -117,7 +117,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--pooling',
       type=str,
-      default=configs.get('pooling', 'max'),
+      default=configs.get('pooling', 'avg'),
       help='Number of units in hidden layer 1.')
   
 # config FC
@@ -135,12 +135,12 @@ def set_flags(configs={}):
   parser.add_argument(
       '--eval_step_interval',
       type=int,
-      default=configs.get('eval_step_interval', 100),
+      default=configs.get('eval_step_interval', 250),
       help='How often to evaluate the training results.')
   parser.add_argument(
       '--save_step_interval',
       type=int,
-      default=configs.get('save_step_interval', 200),
+      default=configs.get('save_step_interval', 1000),
       help='Save model checkpoint every save_steps.')
   parser.add_argument(
       '--start_checkpoint',
