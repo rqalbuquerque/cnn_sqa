@@ -308,8 +308,8 @@ def main(argv):
 
     testing_summary = None
     test_rmse = None
+
     if FLAGS.model_architecture == 'conv':
-      
       testing_summary, test_rmse = sess.run(
           [merged_summaries, root_mean_squared_error],
           feed_dict={
@@ -320,17 +320,17 @@ def main(argv):
           })
 
     elif FLAGS.model_architecture == 'conv2': 
-
       testing_summary, test_rmse = sess.run(
           [merged_summaries, root_mean_squared_error],
           feed_dict={
               fingerprint_input: test_fingerprints,
               ground_truth_input: test_ground_truth,
-                  phase_train: False
+              phase_train: False
           })
 
     batch_size = min(FLAGS.batch_size, set_size - i)
     total_rmse += (test_rmse * batch_size) / set_size
+    tf.logging.info('i=%d: rmse = %.2f' % (i, test_rmse))
   tf.logging.info('Final RMSE = %.2f (N=%d)' % (total_rmse, set_size))
   
   # Write test configuration settings 
