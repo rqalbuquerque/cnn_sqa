@@ -13,6 +13,7 @@ import re
 import sys
 import tarfile
 import sys
+import glob
 
 import numpy as np
 from six.moves import urllib
@@ -118,28 +119,46 @@ def save_wav_file(filename, wav_data, sample_rate):
             wav_data_placeholder: np.reshape(wav_data, (-1, 1))
         })
 
+def save_spectrogram_images(inputdir, outputdir):
+  if os.path.exists(inputdir):
+    if not os.path.exists(outputdir):
+      os.makedirs(outputdir)
 
-def save_spectrogram_image(filename, outputname):
-  # Wav file name
+    with tf.Session() as sess:
+      for filename in glob.glob(os.path.join(inputdir, '*.wav')):
+        print(filename)
+        name =  os.path.splitext(os.path.basename(filename))[0]
+        # Run the computation graph and save the png encoded image to a file
+        wav_file, graph = spectrogram_image_graph()
+        image = sess.run(graph, feed_dict={wav_file: filename})
+
+        with open(outputdir + "/" + name + ".png", 'wb') as f:
+            f.write(image)
+
+def spectrogram_image_graph():
+    # Wav file name
   wav_file = tf.placeholder(tf.string)
 
   # Read the wav file
-  audio_binary = tf.read_file(wav_file)
+  wav_loader = io_ops.read_file(wav_file)
 
   # Decode the wav mono into a 2D tensor with time in dimension 0
   # and channel along dimension 1
-  waveform = contrib_audio.decode_wav(audio_binary, desired_channels=1)
+  waveform = contrib_audio.decode_wav(wav_loader, desired_channels=1, desired_samples=(9*16000))
 
   # Compute the spectrogram
   spectrogram = contrib_audio.audio_spectrogram(
           waveform.audio,
           window_size=1024,
-          stride=128,
-          magnitude_squared=True)
+          stride=128)
+
+  feature = contrib_audio.mfcc(
+      spectrogram,
+      waveform.sample_rate,
+      dct_coefficient_count=40)
 
   # Custom brightness
-  brightness = tf.placeholder(tf.float32, shape=[])
-  mul = tf.multiply(spectrogram, brightness)
+  mul = tf.multiply(feature, 100)
 
   # Normalize pixels
   min_const = tf.constant(255.)
@@ -164,15 +183,7 @@ def save_spectrogram_image(filename, outputname):
 
   # Cast to uint8 and encode as png
   cast = tf.cast(grayscale, tf.uint8)
-  png = tf.image.encode_png(cast)
-
-  with tf.Session() as sess:
-      # Run the computation graph and save the png encoded image to a file
-      image = sess.run(png, feed_dict={
-        wav_file: filename, brightness: 100})
-
-      with open(outputname, 'wb') as f:
-          f.write(image)
+  return wav_file, tf.image.encode_png(cast)
 
 
 class AudioProcessor(object):
@@ -305,24 +316,6 @@ class AudioProcessor(object):
     wav_loader = io_ops.read_file(self.wav_filename_placeholder_)
     wav_decoder = contrib_audio.decode_wav(
         wav_loader, desired_channels=1, desired_samples=desired_samples)
-    
-    # Shift the sample's start position, and pad any gaps with zeros.
-    # self.time_shift_padding_placeholder_ = tf.placeholder(tf.int32, [2, 2])
-    # self.time_shift_offset_placeholder_ = tf.placeholder(tf.int32, [2])
-    # padded_foreground = tf.pad(
-    #     wav_decoder.audio,
-    #     self.time_shift_padding_placeholder_,
-    #     mode='CONSTANT')
-    # sliced_foreground = tf.slice(padded_foreground,
-    #                              self.time_shift_offset_placeholder_,
-    #                              [desired_samples, -1])
-
-    # Run the spectrogram and MFCC ops to get a 2D 'fingerprint' of the audio.
-    # self.spectrogram = contrib_audio.audio_spectrogram(
-    #     sliced_foreground,
-    #     window_size=model_settings['window_size_samples'],
-    #     stride=model_settings['window_stride_samples'],
-    #     magnitude_squared=True)
 
     self.spectrogram = contrib_audio.audio_spectrogram(
         wav_decoder.audio,
@@ -332,29 +325,23 @@ class AudioProcessor(object):
 
     self.feature = []
     if model_settings['feature_used'] == 'spectrogram':
-      coeffic_count = max(model_settings['dct_coefficient_count'],128)
+      coeffic_count = int(model_settings['dct_coefficient_count']/4)
       frames_count = self.spectrogram.shape[1]
       self.feature = tf.slice(self.spectrogram,
                               [0,0,0],
                               [-1,frames_count,coeffic_count])
     elif model_settings['feature_used'] == 'mfcc':
+      frames_count = self.spectrogram.shape[1]
+      coeffic_count = 
+      feature = tf.slice(self.spectrogram,
+                              [0,0,0],
+                              [-1,frames_count,coeffic_count])
+
       self.feature = contrib_audio.mfcc(
           self.spectrogram,
           wav_decoder.sample_rate,
           dct_coefficient_count=model_settings['dct_coefficient_count'])
       
-      # input()
-      # print(type(wav_decoder.audio.eval()))
-      # print(type(wav_decoder.sample_rate.eval()))
-      # print(type(model_settings['dct_coefficient_count']))
-      # input()
-
-      # self.feature = librosa.feature.mfcc(
-      #     y=wav_decoder.audio.eval(),
-      #     sr=wav_decoder.sample_rate.eval(),
-      #     n_mfcc=model_settings['dct_coefficient_count'])
-
-
   def set_size(self, mode):
     """Calculates the number of samples in the dataset partition.
 

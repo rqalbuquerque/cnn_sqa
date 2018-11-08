@@ -70,29 +70,29 @@ def set_flags(configs={}):
   parser.add_argument(
       '--window_size_ms',
       type=float,
-      default=configs.get('window_size_ms', 64.0),
+      default=configs.get('window_size_ms', 30.0),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--window_stride_ms',
       type=float,
-      default=configs.get('window_stride_ms', 8.0),
+      default=configs.get('window_stride_ms', 5.0),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--feature_used',
       type=str,
-      default=configs.get('feature_used', 'mfcc'),
+      default=configs.get('feature_used', 'spectrogram'),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--dct_coefficient_count',
       type=int,
-      default=configs.get('dct_coefficient_count', 40),
+      default=configs.get('dct_coefficient_count', 480),
       help='How many bins to use for the MFCC fingerprint')
 
 # config CNN
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default=configs.get('model_architecture', 'conv'),
+      default=configs.get('model_architecture', 'conv2'),
       help='What model architecture to use')
   parser.add_argument(
       '--conv_layers',

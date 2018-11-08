@@ -321,7 +321,10 @@ def main(argv):
 
     elif FLAGS.model_architecture == 'conv2': 
       testing_summary, test_rmse = sess.run(
-          [merged_summaries, root_mean_squared_error],
+          [
+            merged_summaries, 
+            root_mean_squared_error
+          ],
           feed_dict={
               fingerprint_input: test_fingerprints,
               ground_truth_input: test_ground_truth,
