@@ -51,15 +51,13 @@ def main(argv):
       FLAGS.data_dir,  
       FLAGS.validation_percentage,
       FLAGS.testing_percentage, 
-      FLAGS.feature_used,
       model_settings)
 
   # print size of training, validation and testing data
-  train_len, val_len, test_len = audio_processor.get_set_sizes()
   print("***************** DataBase Length *****************")
-  print("Training length: " + str(train_len))
-  print("Validation length: " + str(val_len))
-  print("Testing length: " + str(test_len))
+  print("Training length: " + str(audio_processor.set_size('training')))
+  print("Validation length: " + str(audio_processor.set_size('validation')))
+  print("Testing length: " + str(audio_processor.set_size('testing')))
 
   #indexes = audio_processor.get_testing_indexes()
   #with open(FLAGS.summaries_dir + '/' + "testint_set_indexes" + '.txt', 'w') as testIndFile:
@@ -154,8 +152,7 @@ def main(argv):
   tf.logging.info('Training from step: %d ', start_step)
 
   # Save graph.pbtxt.
-  tf.train.write_graph(sess.graph_def, FLAGS.train_dir,
-                       FLAGS.model_architecture + '.pbtxt')
+  tf.train.write_graph(sess.graph_def, FLAGS.train_dir, FLAGS.model_architecture + '.pbtxt')
 
   initial_training_rmse = -1
   final_training_rmse = -1
@@ -173,10 +170,8 @@ def main(argv):
       if training_step <= training_steps_sum:
         learning_rate_value = learning_rates_list[i]
         break
-    # Pull the audio samples we'll use for training.
-    # train_fingerprints, train_ground_truth = audio_processor.get_data(
-    #     FLAGS.batch_size, 0, model_settings, time_shift_samples, 'training', sess)
 
+    # Pull the audio samples we'll use for training.
     train_fingerprints, train_ground_truth = audio_processor.get_data(
         FLAGS.batch_size, 0, model_settings, 'training', sess)
 
@@ -348,11 +343,11 @@ def main(argv):
     testFile.write('|Configuration|\n')
     testFile.write('+-------------+\n')
     testFile.write(tabulate([['training_percentage', 100-FLAGS.testing_percentage-FLAGS.validation_percentage],
-      ['training_size', train_len], 
+      ['training_size', audio_processor.set_size('training')], 
       ['validation_percentage', FLAGS.testing_percentage], 
-      ['validation_size', val_len], 
+      ['validation_size', audio_processor.set_size('validation')], 
       ['testing_percentage', FLAGS.validation_percentage], 
-      ['testing_size', test_len], 
+      ['testing_size', audio_processor.set_size('testing')], 
       ['batch_size', FLAGS.batch_size], 
       ['training_steps', FLAGS.training_steps], 
       ['learning_rate', FLAGS.learning_rate]], 
