@@ -63,29 +63,29 @@ def set_flags(configs={}):
   parser.add_argument(
       '--clip_duration_ms',
       type=int,
-      default=configs.get('clip_duration_ms', 8000),
+      default=configs.get('clip_duration_ms', 9000),
       help='Expected duration in milliseconds of the wavs')
 
 # config Spectrogram
   parser.add_argument(
       '--window_size_ms',
       type=float,
-      default=configs.get('window_size_ms', 30.0),
+      default=configs.get('window_size_ms', 32.0),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--window_stride_ms',
       type=float,
-      default=configs.get('window_stride_ms', 5.0),
+      default=configs.get('window_stride_ms', 8.0),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--feature_used',
       type=str,
-      default=configs.get('feature_used', 'spectrogram'),
+      default=configs.get('feature_used', 'mfcc'),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--dct_coefficient_count',
       type=int,
-      default=configs.get('dct_coefficient_count', 480),
+      default=configs.get('dct_coefficient_count', 40),
       help='How many bins to use for the MFCC fingerprint')
 
 # config CNN
