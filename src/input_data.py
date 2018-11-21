@@ -122,19 +122,19 @@ class AudioProcessor(object):
   """
   def prepare_processing_graph(self, model_settings):
     self.wav_filename_placeholder_ = tf.placeholder(tf.string, [])
-    waveforme = self.prepare_load_wav_graph("old", self.wav_filename_placeholder_, model_settings)
+    waveforme = self.prepare_load_wav_graph("load_old", self.wav_filename_placeholder_, model_settings)
     spectrogram = self.prepare_spectrogram_graph("spec_old", waveforme, model_settings)
-    self.feature = self.prepare_feature_graph("mfcc", spectrogram, model_settings)
+    self.feature = self.prepare_feature_graph(spectrogram, model_settings)
 
   def prepare_load_wav_graph(self, mode, wav_filename_placeholder, model_settings):
-    if mode == "old":
+    if mode == "load_old":
       wav_loader = io_ops.read_file(wav_filename_placeholder)
       wav_decoder = contrib_audio.decode_wav(
           wav_loader, 
           desired_channels=1, 
           desired_samples=model_settings['desired_samples'])
       return wav_decoder.audio
-    elif mode == "new":
+    elif mode == "load_new":
       wav_loader = tf.read_file(wav_filename_placeholder)
       wav_decoder = tf.contrib.ffmpeg.decode_audio(
           wav_loader,
@@ -159,16 +159,15 @@ class AudioProcessor(object):
           fft_length=model_settings['window_size_samples'])
       return spectrogram
 
-  def prepare_feature_graph(self, mode, spectrogram, model_settings):
-    if mode == "spectrogram":
-      frames_count = self.spectrogram.shape[1]
-      coeffic_count = int(model_settings['dct_coefficient_count'])
+  def prepare_feature_graph(self, spectrogram, model_settings):
+    if model_settings["feature_used"] == "spectrogram":
+      frames_count = model_settings["spectrogram_length"]
+      coeffic_count = model_settings['dct_coefficient_count']
       feature = tf.slice(
           spectrogram, 
           [0,0,0],
           [-1,frames_count,coeffic_count])
-    elif mode == "mfcc": 
-      print(spectrogram.shape)
+    elif model_settings["feature_used"] == "mfcc": 
       feature = contrib_audio.mfcc(
           tf.real(spectrogram),
           model_settings['sample_rate'],
@@ -207,7 +206,7 @@ class AudioProcessor(object):
     scores = np.zeros((sample_count, 1))
     pick_deterministically = (mode != 'training')
 
-    # Use the processing graph we created earlier to repeatedly to generate the
+    # Use the processing graph created earlier to repeatedly to generate the
     # final output sample data we'll use in training.
     for i in xrange(offset, offset + sample_count):
       # Pick which audio sample to use.

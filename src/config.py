@@ -14,7 +14,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--data_dir',
       type=str,
-      default=configs.get('data_dir', '../database/speech_dataset'),
+      default=configs.get('data_dir', '../database/speech_dataset_test'),
       help=""" Where to download the speech training data to. """)
   parser.add_argument(
       '--summaries_dir',
@@ -31,27 +31,27 @@ def set_flags(configs={}):
   parser.add_argument(
       '--testing_percentage',
       type=int,
-      default=configs.get('testing_percentage', 10),
+      default=configs.get('testing_percentage', 20),
       help='What percentage of wavs to use as a test set.')
   parser.add_argument(
       '--validation_percentage',
       type=int,
-      default=configs.get('validation_percentage', 10),
+      default=configs.get('validation_percentage', 20),
       help='What percentage of wavs to use as a validation set.')
   parser.add_argument(
       '--batch_size',
       type=int,
-      default=configs.get('batch_size', 30),
+      default=configs.get('batch_size', 2),
       help='How many items to train with at once')
   parser.add_argument(
       '--training_steps',
       type=str,
-      default=configs.get('training_steps', '5000,1000'),
+      default=configs.get('training_steps', '5;5'),
       help='How many training loops to run')  
   parser.add_argument(
       '--learning_rate',
       type=str,
-      default=configs.get('learning_rate', '0.01,0.001'),
+      default=configs.get('learning_rate', '0.01;0.001'),
       help='How large a learning rate to use when training.')
 
 # config Signal
@@ -85,52 +85,63 @@ def set_flags(configs={}):
   parser.add_argument(
       '--dct_coefficient_count',
       type=int,
-      default=configs.get('dct_coefficient_count', 40),
+      default=configs.get('dct_coefficient_count', 5),
       help='How many bins to use for the MFCC fingerprint')
 
 # config CNN
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default=configs.get('model_architecture', 'conv2'),
+      default=configs.get('model_architecture', 'conv_test'),
+      # default=configs.get('model_architecture', 'conv2'),
       help='What model architecture to use')
   parser.add_argument(
       '--conv_layers',
       type=int,
-      default=configs.get('conv_layers', 3),
-      help='What model architecture to use')
+      default=configs.get('conv_layers', 1),
+      # default=configs.get('conv_layers', 3),
+      help='How many convolutional layers to use')
   parser.add_argument(
       '--filter_width',
-      type=int,
-      default=configs.get('filter_width', 5),
-      help='What model architecture to use')
+      type=str,
+      default=configs.get('filter_width', "5"),
+      # default=configs.get('filter_width', "5;10;15"),
+      help='What filter width to use')
+  parser.add_argument(
+      '--filter_height',
+      type=str,
+      default=configs.get('filter_height', "5"),
+      # default=configs.get('filter_height', "5;10;15"),
+      help='What filter height to use')
   parser.add_argument(
       '--filter_count',
-      type=int,
-      default=configs.get('filter_count', 50),
-      help='What model architecture to use')
+      type=str,
+      default=configs.get('filter_count', "5"),
+      # default=configs.get('filter_count', "5;5;5"),
+      help='What filter count to use')
   parser.add_argument(
       '--stride',
-      type=int,
-      default=configs.get('stride', 1),
-      help='What model architecture to use')
+      type=str,
+      default=configs.get('stride', "1"),
+      # default=configs.get('stride', "1;1;1"),
+      help='What long stride to use')
   parser.add_argument(
       '--pooling',
       type=str,
       default=configs.get('pooling', 'avg'),
-      help='Number of units in hidden layer 1.')
+      help='What pooling type to use.')
   
 # config FC
   parser.add_argument(
       '--fc_layers',
       type=int,
       default=configs.get('fc_layers', 1),
-      help='Number of units in hidden layer 1.')
+      help='Number of fully connected layers to use.')
   parser.add_argument(
       '--hidden_units',
-      type=int,
-      default=configs.get('hidden_units', 400),
-      help='Number of units in hidden layer 1.')
+      type=str,
+      default=configs.get('hidden_units', "400"),
+      help='Number of units in hidden layers.')
 
   parser.add_argument(
       '--eval_step_interval',
