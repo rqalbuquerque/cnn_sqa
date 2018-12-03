@@ -77,8 +77,8 @@ def main(argv):
 
   # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('loss'):
-    root_mean_squared_error = tf.sqrt(tf.reduce_mean(
-      tf.squared_difference(ground_truth_input, estimator)))
+    root_mean_squared_error = tf.sqrt(
+      tf.reduce_mean(tf.squared_difference(ground_truth_input, estimator)))
   tf.summary.scalar('rmse', root_mean_squared_error)
 
   with tf.name_scope('train'), tf.control_dependencies(control_dependencies):

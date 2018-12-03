@@ -140,7 +140,8 @@ def conv_layer(input_tensor,
                    filter_width, 
                    filters_depth, 
                    stride,
-                   output_maps_count):
+                   output_maps_count,
+                   phase_train):
   with tf.name_scope('conv'):
     weights = tf.Variable(
       tf.truncated_normal(
@@ -153,7 +154,16 @@ def conv_layer(input_tensor,
         stddev=0.01),
       name='weights')
     bias = tf.Variable(tf.zeros([output_maps_count]))
-    return tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME') + bias
+
+    conv = tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME') + bias
+    norm_conv = batch_normalization(conv, output_maps_count, phase_train)
+    relu = activation(norm_conv, "relu")
+
+    tf.summary.histogram('weights', weights)
+    tf.summary.histogram('bias', bias)
+    tf.summary.histogram('relu', relu)
+
+    return relu
 
 """
 Fully-connected layer.
@@ -164,7 +174,7 @@ Args:
 Return:
     output matrix
 """
-def add_fully_connected(input_tensor, input_units, hidden_units):
+def fully_connected(input_tensor, input_units, hidden_units):
   with tf.name_scope('fc'):
     weights = tf.Variable(
       tf.truncated_normal(
@@ -402,6 +412,8 @@ def create_conv2_model(fingerprint_input, model_settings):
   spectrogram_length = model_settings['spectrogram_length']
   fingerprint = tf.reshape(fingerprint_input,
                   [-1, spectrogram_length, dct_coefficient_count, 1])
+  
+  tf.summary.image('input', fingerprint, 1)
 
   # config conv
   phase_train = tf.placeholder(tf.bool, name='phase_train')
@@ -416,32 +428,29 @@ def create_conv2_model(fingerprint_input, model_settings):
                        filters_width[0], 
                        int(fingerprint.shape[-1]), 
                        conv_stride[0],
-                       feature_maps_count[0])
-  norm_conv_1 = batch_normalization(conv_1, feature_maps_count[0], phase_train)
-  relu_1 = activation(norm_conv_1, "relu")
+                       feature_maps_count[0],
+                       phase_train)
 
   # conv layer 2
-  conv_2 = conv_layer(relu_1, 
+  conv_2 = conv_layer(conv_1, 
                        filters_height[1], 
                        filters_width[1], 
-                       int(relu_1.shape[-1]), 
+                       int(conv_1.shape[-1]), 
                        conv_stride[1],
-                       feature_maps_count[1])
-  norm_conv_2 = batch_normalization(conv_2, feature_maps_count[1], phase_train)
-  relu_2 = activation(norm_conv_2, "relu")
+                       feature_maps_count[1],
+                       phase_train)
 
   # conv layer 3
-  conv_3 = conv_layer(relu_2, 
-                           filters_height[2], 
-                           filters_width[2], 
-                           int(relu_2.shape[-1]), 
-                           conv_stride[2],
-                           feature_maps_count[2])
-  norm_conv_3 = batch_normalization(conv_3, feature_maps_count[2], phase_train)
-  relu_3 = activation(norm_conv_3, "relu")
+  conv_3 = conv_layer(conv_2, 
+                       filters_height[2], 
+                       filters_width[2], 
+                       int(conv_2.shape[-1]), 
+                       conv_stride[2],
+                       feature_maps_count[2],
+                       phase_train)
 
   # pooling
-  pooling = x_pooling(relu_3, 
+  pooling = x_pooling(conv_3, 
                        model_settings['pooling'], 
                        [1, 2, 2, 1], 
                        [1, 2, 2, 1], 
@@ -456,11 +465,11 @@ def create_conv2_model(fingerprint_input, model_settings):
   fc_outputs_count = list(map(int, model_settings['hidden_units'].split(";")))
 
   # fc layer 1
-  fc_1 = add_fully_connected(flattened, element_count, fc_outputs_count[0])
+  fc_1 = fully_connected(flattened, element_count, fc_outputs_count[0])
   final_fc_relu = activation(fc_1, "relu")
 
   # regression 
-  estimator = add_fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1)
+  estimator = fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1)
   return estimator, phase_train
 
 
@@ -494,10 +503,10 @@ def create_conv_test(fingerprint_input, model_settings):
   flattened = tf.reshape(relu_1, [-1, element_count])
 
   # fc layer 1
-  fc_1 = add_fully_connected(flattened, element_count, fc_outputs_count[0])
+  fc_1 = fully_connected(flattened, element_count, fc_outputs_count[0])
   final_fc_relu = activation(fc_1, "relu")
 
   # regression 
-  estimator = add_fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1)
+  estimator = fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1)
 
   return estimator, phase_train
