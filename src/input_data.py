@@ -121,10 +121,11 @@ class AudioProcessor(object):
     model_settings: Information about the current model being trained.
   """
   def prepare_processing_graph(self, model_settings):
-    self.wav_filename_placeholder_ = tf.placeholder(tf.string, [])
-    waveforme = self.prepare_load_wav_graph("load_old", self.wav_filename_placeholder_, model_settings)
-    spectrogram = self.prepare_spectrogram_graph("spec_old", waveforme, model_settings)
-    self.feature = self.prepare_feature_graph(spectrogram, model_settings)
+    with tf.name_scope('input'):
+      self.wav_filename_placeholder_ = tf.placeholder(tf.string, [])
+      waveforme = self.prepare_load_wav_graph("load_old", self.wav_filename_placeholder_, model_settings)
+      spectrogram = self.prepare_spectrogram_graph("spec_old", waveforme, model_settings)
+      self.feature = self.prepare_feature_graph(spectrogram, model_settings)
 
   def prepare_load_wav_graph(self, mode, wav_filename_placeholder, model_settings):
     if mode == "load_old":

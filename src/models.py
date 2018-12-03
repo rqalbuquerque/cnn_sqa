@@ -74,7 +74,7 @@ def load_variables_from_checkpoint(sess, start_checkpoint):
   saver = tf.train.Saver(tf.global_variables())
   saver.restore(sess, start_checkpoint)
 
-def add_activation(input_tensor, mode):
+def activation(input_tensor, mode):
   return tf.nn.relu(input_tensor) if mode == "relu" else input_tensor
 
 """Utility function to add pooling to the graph.
@@ -89,9 +89,9 @@ Args:
 Returns:
   TensorFlow node outputting pooling results.
 """
-def add_pooling(input_tensor, mode, ksize, strides, padding):
-  return tf.nn.max_pool(input_tensor, ksize, strides, padding) if mode == "max" else input_tensor
-  return tf.nn.avg_pool(input_tensor, ksize, strides, padding) if mode == "avg" else input_tensor
+def x_pooling(input_tensor, mode, ksize, strides, padding):
+  return tf.nn.max_pool(input_tensor, ksize, strides, padding, name="max_pool") if mode == "max" else input_tensor
+  return tf.nn.avg_pool(input_tensor, ksize, strides, padding, name="avg_pool") if mode == "avg" else input_tensor
 
 """
 Batch normalization on convolutional maps.
@@ -104,49 +104,78 @@ Args:
 Return:
     Batch-normalized maps
 """
-def add_batch_normalization(input_tensor, n_out, phase_train):
-  beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
-                               name='beta', trainable=True)
-  gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
-                                name='gamma', trainable=True)
-  batch_mean, batch_var = tf.nn.moments(input_tensor, [0,1,2], name='moments')
-  ema = tf.train.ExponentialMovingAverage(decay=0.5)
+def batch_normalization(input_tensor, n_out, phase_train):
+  with tf.name_scope('batch_norm'):
+    beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
+                                 name='beta', trainable=True)
+    gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
+                                  name='gamma', trainable=True)
+    batch_mean, batch_var = tf.nn.moments(input_tensor, [0,1,2], name='moments')
+    ema = tf.train.ExponentialMovingAverage(decay=0.5)
 
-  def mean_var_with_update():
-    ema_apply_op = ema.apply([batch_mean, batch_var])
-    with tf.control_dependencies([ema_apply_op]):
-      return tf.identity(batch_mean), tf.identity(batch_var)
+    def mean_var_with_update():
+      ema_apply_op = ema.apply([batch_mean, batch_var])
+      with tf.control_dependencies([ema_apply_op]):
+        return tf.identity(batch_mean), tf.identity(batch_var)
 
-  mean, var = tf.cond(phase_train,
-                      mean_var_with_update,
-                      lambda: (ema.average(batch_mean), ema.average(batch_var)))
-  return tf.nn.batch_normalization(input_tensor, mean, var, beta, gamma, 1e-3)
+    mean, var = tf.cond(phase_train,
+                        mean_var_with_update,
+                        lambda: (ema.average(batch_mean), ema.average(batch_var)))
+    return tf.nn.batch_normalization(input_tensor, mean, var, beta, gamma, 1e-3)
 
-def add_convolution(input_tensor, 
+"""
+Convolutional layer.
+Args:
+    input_tensor: Tensor, 4D BHWD input maps
+    filter_height: integer, height of filter
+    filter_width: integer, width of filter
+    filters_depth: integer, depth of filter
+    stride: integer, stride of filter
+    output_maps_count: integer, number of feature maps
+Return:
+    feature maps volume tensor
+"""
+def conv_layer(input_tensor, 
                    filter_height, 
                    filter_width, 
                    filters_depth, 
                    stride,
                    output_maps_count):
+  with tf.name_scope('conv'):
+    weights = tf.Variable(
+      tf.truncated_normal(
+        [
+          filter_height, 
+          filter_width, 
+          filters_depth, 
+          output_maps_count
+        ],
+        stddev=0.01),
+      name='weights')
+    bias = tf.Variable(tf.zeros([output_maps_count]))
+    return tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME') + bias
 
-  weights = tf.Variable(
-    tf.truncated_normal(
-      [
-        filter_height, 
-        filter_width, 
-        filters_depth, 
-        output_maps_count
-      ],
-      stddev=0.01)
-  )
-  bias = tf.Variable(tf.zeros([output_maps_count]))
-  return tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME') + bias
-
-def add_fully_connected(input_tensor, element_count, hidden_units):
-  weights = tf.Variable(
-    tf.truncated_normal([element_count, hidden_units], stddev=0.01), name='weights')
-  bias = tf.Variable(tf.zeros([hidden_units]), name='biases')
-  return tf.matmul(input_tensor, weights) + bias
+"""
+Fully-connected layer.
+Args:
+    input_tensor: Tensor, 4D BHWD input maps
+    input_units: integer, number of input units
+    hidden_units: integer, number of hidden units
+Return:
+    output matrix
+"""
+def add_fully_connected(input_tensor, input_units, hidden_units):
+  with tf.name_scope('fc'):
+    weights = tf.Variable(
+      tf.truncated_normal(
+        [
+          input_units, 
+          hidden_units
+        ], 
+        stddev=0.01), 
+      name='weights')
+    bias = tf.Variable(tf.zeros([hidden_units]), name='biases')
+    return tf.matmul(input_tensor, weights) + bias
 
 """Builds a model of the requested architecture compatible with the settings.
 
@@ -382,41 +411,41 @@ def create_conv2_model(fingerprint_input, model_settings):
   conv_stride = list(map(int, model_settings['stride'].split(";")))
 
   # conv layer 1
-  conv_1 = add_convolution(fingerprint, 
-                           filters_height[0], 
-                           filters_width[0], 
-                           int(fingerprint.shape[-1]), 
-                           conv_stride[0],
-                           feature_maps_count[0])
-  norm_conv_1 = add_batch_normalization(conv_1, feature_maps_count[0], phase_train)
-  relu_1 = add_activation(norm_conv_1, "relu")
+  conv_1 = conv_layer(fingerprint, 
+                       filters_height[0], 
+                       filters_width[0], 
+                       int(fingerprint.shape[-1]), 
+                       conv_stride[0],
+                       feature_maps_count[0])
+  norm_conv_1 = batch_normalization(conv_1, feature_maps_count[0], phase_train)
+  relu_1 = activation(norm_conv_1, "relu")
 
   # conv layer 2
-  conv_2 = add_convolution(conv_1, 
-                           filters_height[1], 
-                           filters_width[1], 
-                           int(relu_1.shape[-1]), 
-                           conv_stride[1],
-                           feature_maps_count[1])
-  norm_conv_2 = add_batch_normalization(conv_2, feature_maps_count[1], phase_train)
-  relu_2 = add_activation(norm_conv_2, "relu")
+  conv_2 = conv_layer(relu_1, 
+                       filters_height[1], 
+                       filters_width[1], 
+                       int(relu_1.shape[-1]), 
+                       conv_stride[1],
+                       feature_maps_count[1])
+  norm_conv_2 = batch_normalization(conv_2, feature_maps_count[1], phase_train)
+  relu_2 = activation(norm_conv_2, "relu")
 
   # conv layer 3
-  conv_3 = add_convolution(conv_2, 
+  conv_3 = conv_layer(relu_2, 
                            filters_height[2], 
                            filters_width[2], 
                            int(relu_2.shape[-1]), 
                            conv_stride[2],
                            feature_maps_count[2])
-  norm_conv_3 = add_batch_normalization(conv_3, feature_maps_count[2], phase_train)
-  relu_3 = add_activation(norm_conv_3, "relu")
+  norm_conv_3 = batch_normalization(conv_3, feature_maps_count[2], phase_train)
+  relu_3 = activation(norm_conv_3, "relu")
 
   # pooling
-  pooling = add_pooling(relu_3, 
-                         model_settings['pooling'], 
-                         [1, 2, 2, 1], 
-                         [1, 2, 2, 1], 
-                         'SAME')
+  pooling = x_pooling(relu_3, 
+                       model_settings['pooling'], 
+                       [1, 2, 2, 1], 
+                       [1, 2, 2, 1], 
+                       'SAME')
 
   # flattened pooling
   [_, output_height, output_width, output_depth] = pooling.get_shape()
@@ -428,11 +457,10 @@ def create_conv2_model(fingerprint_input, model_settings):
 
   # fc layer 1
   fc_1 = add_fully_connected(flattened, element_count, fc_outputs_count[0])
-  final_fc_relu = add_activation(fc_1, "relu")
+  final_fc_relu = activation(fc_1, "relu")
 
   # regression 
   estimator = add_fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1)
-
   return estimator, phase_train
 
 
@@ -448,28 +476,26 @@ def create_conv_test(fingerprint_input, model_settings):
   filters_width = list(map(int, model_settings['filter_width'].split(";")))
   filters_height = list(map(int, model_settings['filter_height'].split(";")))
   conv_stride = list(map(int, model_settings['stride'].split(";")))
+  fc_outputs_count = list(map(int, model_settings['hidden_units'].split(";")))
 
   # conv layer 1
-  conv_1 = add_convolution(fingerprint, 
+  conv_1 = conv_layer(fingerprint, 
                            filters_height[0], 
                            filters_width[0], 
                            int(fingerprint.shape[-1]), 
                            conv_stride[0],
                            feature_maps_count[0])
-  norm_conv_1 = add_batch_normalization(conv_1, feature_maps_count[0], phase_train)
-  relu_1 = add_activation(norm_conv_1, "relu")
+  norm_conv_1 = batch_normalization(conv_1, feature_maps_count[0], phase_train)
+  relu_1 = activation(norm_conv_1, "relu")
 
   # flattened pooling
   [_, output_height, output_width, output_depth] = relu_1.get_shape()
   element_count = int(output_height * output_width * output_depth)
   flattened = tf.reshape(relu_1, [-1, element_count])
 
-  # config fc layers
-  fc_outputs_count = list(map(int, model_settings['hidden_units'].split(";")))
-
   # fc layer 1
   fc_1 = add_fully_connected(flattened, element_count, fc_outputs_count[0])
-  final_fc_relu = add_activation(fc_1, "relu")
+  final_fc_relu = activation(fc_1, "relu")
 
   # regression 
   estimator = add_fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1)
