@@ -8,6 +8,7 @@ from __future__ import print_function
 from tabulate import tabulate
 import time
 import os.path
+import re
 
 import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
@@ -16,6 +17,15 @@ import tensorflow as tf
 import input_data
 import models
 import config
+
+def create_log_dir(logdir):
+  dirs = [x[0] for x in os.walk(logdir)]
+  if len(dirs) > 1:
+    last = sorted(dirs[1:])[-1]
+    num = int(re.search(r'[0-9]+', last).group()) + 1
+    return logdir + '/run' + str(num)
+  else:
+    return logdir + '/run1'
 
 def main(argv):
   # Get flags
@@ -55,9 +65,11 @@ def main(argv):
   print("Validation length: " + str(audio_processor.set_size('validation')))
   print("Testing length: " + str(audio_processor.set_size('testing')))
 
+  # input
   fingerprint_input = tf.placeholder(
       tf.float32, [None, model_settings['fingerprint_size']], name='fingerprint_input')
 
+  # model
   estimator, phase_train = models.create_model(
       fingerprint_input,
       model_settings,
@@ -71,9 +83,9 @@ def main(argv):
   # Optionally we can add runtime checks to spot when NaNs or other symptoms of
   # numerical errors start occurring during training.
   control_dependencies = []
-  if FLAGS.check_nans:
-    checks = tf.add_check_numerics_ops()
-    control_dependencies = [checks]
+  # if FLAGS.check_nans:
+  #   checks = tf.add_check_numerics_ops()
+  #   control_dependencies = [checks]
 
   # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('loss'):
@@ -94,8 +106,10 @@ def main(argv):
 
   # Merge all the summaries and write them out to /tmp/retrain_logs (by default)
   merged_summaries = tf.summary.merge_all()
-  train_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/train', sess.graph)
-  validation_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/validation')
+  log_dir = create_log_dir(FLAGS.summaries_dir)
+  train_writer = tf.summary.FileWriter(log_dir + '/train', sess.graph)
+  validation_writer = tf.summary.FileWriter(log_dir + '/validation')
+  test_writer = tf.summary.FileWriter(log_dir + '/test')
 
   tf.global_variables_initializer().run()
 
@@ -105,15 +119,8 @@ def main(argv):
     start_step = global_step.eval(session=sess)
 
   # Save graph.pbtxt.
-  tf.train.write_graph(sess.graph_def, FLAGS.train_dir, FLAGS.model_architecture + '.pbtxt')
-  
-  tf.logging.info('"***************** Training *****************')
-  tf.logging.info('Training from step: %d ', start_step)
+  #tf.train.write_graph(sess.graph_def, FLAGS.train_dir, FLAGS.model_architecture + '.pbtxt')
 
-  # Figure out the learning rates for each training phase. Since it's often
-  # effective to have high learning rates at the start of training, followed by
-  # lower levels towards the end, the number of steps and learning rates can be
-  # specified as comma-separated lists to define the rate at each stage.
   training_steps_list = list(map(int, FLAGS.training_steps.split(';')))
   learning_rates_list = list(map(float, FLAGS.learning_rate.split(';')))
   if len(training_steps_list) != len(learning_rates_list):
@@ -121,8 +128,10 @@ def main(argv):
         '--training_steps and --learning_rate must be equal length '
         'lists, but are %d and %d long instead' % (len(training_steps_list),
                                                    len(learning_rates_list)))
+  
+  tf.logging.info('"***************** Training *****************')
+  tf.logging.info('Training from step: %d ', start_step)
 
-  # ******* train loop *******
   training_steps_max = np.sum(training_steps_list)
   for training_step in xrange(start_step, training_steps_max + 1):
     # Figure out what the current learning rate is.
@@ -153,25 +162,21 @@ def main(argv):
         })
 
     train_writer.add_summary(train_summary, training_step)
-    tf.logging.info('Step #%d: rate %f, root mean squared error %f' %
+    tf.logging.info('step #%d: rate %f, rmse %f' %
                     (training_step, learning_rate_value, train_rmse))
 
-    # ******* validation loop *******
-    is_last_step = (training_step == training_steps_max)
-    if (training_step % FLAGS.eval_step_interval) == 0 or is_last_step:
 
+    if (training_step % FLAGS.eval_step_interval) == 0 or (training_step == training_steps_max):
+      tf.logging.info('***************** Validation *****************')
+      
       set_size = audio_processor.set_size('validation')
       total_rmse = 0
-
-      tf.logging.info('***************** Validation *****************')
 
       for i in xrange(0, set_size, FLAGS.batch_size):
         validation_fingerprints, validation_ground_truth = (
             audio_processor.get_data(FLAGS.batch_size, i, model_settings,
                                      'validation', sess))
 
-        # Run a validation step and capture training summaries for TensorBoard
-        # with the `merged` op.
         validation_summary, validation_rmse = sess.run(
             [
               merged_summaries, 
@@ -188,8 +193,7 @@ def main(argv):
         total_rmse += (validation_rmse * batch_size) / set_size
 
         tf.logging.info('i=%d: rmse = %.2f' % (i, validation_rmse))
-
-      tf.logging.info('Step %d: RMSE = %.2f (N=%d)' % (training_step, total_rmse, set_size))
+      tf.logging.info('total rmse = %.2f (N=%d)' % (total_rmse, set_size))
       tf.logging.info('***************** ********** *****************')
 
     # Save the model checkpoint periodically.
@@ -200,10 +204,12 @@ def main(argv):
       # tf.logging.info('Saving to "%s-%d"', checkpoint_path, training_step)
       # saver.save(sess, checkpoint_path, global_step=training_step)
 
-  # ******* testing loop *******
+  print('\n')
+  tf.logging.info('****************** Testing ******************')
+  
   set_size = audio_processor.set_size('testing')
-  tf.logging.info('set_size=%d', set_size)
   total_rmse = 0
+  
   for i in xrange(0, set_size, FLAGS.batch_size):
     test_fingerprints, test_ground_truth = audio_processor.get_data(
         FLAGS.batch_size, i, model_settings, 'testing', sess)
@@ -221,9 +227,11 @@ def main(argv):
 
     batch_size = min(FLAGS.batch_size, set_size - i)
     total_rmse += (test_rmse * batch_size) / set_size
+
     tf.logging.info('i=%d: rmse = %.2f' % (i, test_rmse))
-  tf.logging.info('Final RMSE = %.2f (N=%d)' % (total_rmse, set_size))
-  
+  tf.logging.info('total rmse = %.2f (N=%d)' % (total_rmse, set_size))
+  tf.logging.info('***************** ********** *****************')
+
 if __name__ == '__main__':
   FLAGS, _unparsed = config.set_flags()
   tf.app.run(main=main, argv=[FLAGS])

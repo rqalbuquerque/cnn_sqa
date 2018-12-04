@@ -151,13 +151,16 @@ def conv_layer(input_tensor,
           filters_depth, 
           output_maps_count
         ],
-        stddev=0.01),
+        stddev=0.01,
+        name='random'),
       name='weights')
-    bias = tf.Variable(tf.zeros([output_maps_count]))
+    bias = tf.Variable(tf.zeros([output_maps_count]), name='biases')
 
     conv = tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME') + bias
     norm_conv = batch_normalization(conv, output_maps_count, phase_train)
     relu = activation(norm_conv, "relu")
+
+    tf.summary.image('weights', weights, 3)
 
     tf.summary.histogram('weights', weights)
     tf.summary.histogram('bias', bias)
@@ -182,7 +185,8 @@ def fully_connected(input_tensor, input_units, hidden_units):
           input_units, 
           hidden_units
         ], 
-        stddev=0.01), 
+        stddev=0.01,
+        name='random'), 
       name='weights')
     bias = tf.Variable(tf.zeros([hidden_units]), name='biases')
     return tf.matmul(input_tensor, weights) + bias
