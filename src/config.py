@@ -19,29 +19,29 @@ def set_flags(configs={}):
   parser.add_argument(
       '--summaries_dir',
       type=str,
-      default=configs.get('summaries_dir', '../result/retrain_logs'),
+      default=configs.get('summaries_dir', '../logs/summary'),
       help='Where to save summary logs for TensorBoard.')
   parser.add_argument(
       '--train_dir',
       type=str,
-      default=configs.get('train_dir', '../result/speech_quality_evaluation_train'),
+      default=configs.get('train_dir', '../logs/event'),
       help='Directory to write event logs and checkpoint.')
 
 # config Learning
   parser.add_argument(
       '--testing_percentage',
       type=int,
-      default=configs.get('testing_percentage', 20),
+      default=configs.get('testing_percentage', 5),
       help='What percentage of wavs to use as a test set.')
   parser.add_argument(
       '--validation_percentage',
       type=int,
-      default=configs.get('validation_percentage', 20),
+      default=configs.get('validation_percentage', 10),
       help='What percentage of wavs to use as a validation set.')
   parser.add_argument(
       '--batch_size',
       type=int,
-      default=configs.get('batch_size', 2),
+      default=configs.get('batch_size', 30),
       help='How many items to train with at once')
   parser.add_argument(
       '--training_steps',
@@ -63,7 +63,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--clip_duration_ms',
       type=int,
-      default=configs.get('clip_duration_ms', 9000),
+      default=configs.get('clip_duration_ms', 8000),
       help='Expected duration in milliseconds of the wavs')
 
 # config Spectrogram
@@ -80,50 +80,44 @@ def set_flags(configs={}):
   parser.add_argument(
       '--feature_used',
       type=str,
-      default=configs.get('feature_used', 'mfcc'),
+      default=configs.get('feature_used', 'mfcc2'),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--dct_coefficient_count',
       type=int,
-      default=configs.get('dct_coefficient_count', 5),
+      default=configs.get('dct_coefficient_count', 40),
       help='How many bins to use for the MFCC fingerprint')
 
 # config CNN
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default=configs.get('model_architecture', 'conv_test'),
-      # default=configs.get('model_architecture', 'conv2'),
+      default=configs.get('model_architecture', 'conv2'),
       help='What model architecture to use')
   parser.add_argument(
       '--conv_layers',
       type=int,
-      default=configs.get('conv_layers', 1),
-      # default=configs.get('conv_layers', 3),
+      default=configs.get('conv_layers', 2),
       help='How many convolutional layers to use')
   parser.add_argument(
       '--filter_width',
       type=str,
-      default=configs.get('filter_width', "5"),
-      # default=configs.get('filter_width', "5;10;15"),
+      default=configs.get('filter_width', "5;10"),
       help='What filter width to use')
   parser.add_argument(
       '--filter_height',
       type=str,
-      default=configs.get('filter_height', "5"),
-      # default=configs.get('filter_height', "5;10;15"),
+      default=configs.get('filter_height', "5;10"),
       help='What filter height to use')
   parser.add_argument(
       '--filter_count',
       type=str,
-      default=configs.get('filter_count', "5"),
-      # default=configs.get('filter_count', "5;5;5"),
+      default=configs.get('filter_count', "10;10"),
       help='What filter count to use')
   parser.add_argument(
       '--stride',
       type=str,
-      default=configs.get('stride', "1"),
-      # default=configs.get('stride', "1;1;1"),
+      default=configs.get('stride', "1;1"),
       help='What long stride to use')
   parser.add_argument(
       '--pooling',
@@ -140,18 +134,18 @@ def set_flags(configs={}):
   parser.add_argument(
       '--hidden_units',
       type=str,
-      default=configs.get('hidden_units', "400"),
+      default=configs.get('hidden_units', "100"),
       help='Number of units in hidden layers.')
 
   parser.add_argument(
       '--eval_step_interval',
       type=int,
-      default=configs.get('eval_step_interval', 250),
+      default=configs.get('eval_step_interval', 10),
       help='How often to evaluate the training results.')
   parser.add_argument(
       '--save_step_interval',
       type=int,
-      default=configs.get('save_step_interval', 1000),
+      default=configs.get('save_step_interval', 2000),
       help='Save model checkpoint every save_steps.')
   parser.add_argument(
       '--start_checkpoint',

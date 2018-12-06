@@ -160,7 +160,7 @@ def conv_layer(input_tensor,
     norm_conv = batch_normalization(conv, output_maps_count, phase_train)
     relu = activation(norm_conv, "relu")
 
-    tf.summary.image('weights', weights, 3)
+    #tf.summary.image('weights', weights, 3)
 
     tf.summary.histogram('weights', weights)
     tf.summary.histogram('bias', bias)
@@ -189,6 +189,10 @@ def fully_connected(input_tensor, input_units, hidden_units):
         name='random'), 
       name='weights')
     bias = tf.Variable(tf.zeros([hidden_units]), name='biases')
+
+    tf.summary.histogram('weights', weights)
+    tf.summary.histogram('bias', bias)
+
     return tf.matmul(input_tensor, weights) + bias
 
 """Builds a model of the requested architecture compatible with the settings.

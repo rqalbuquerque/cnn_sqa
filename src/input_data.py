@@ -106,6 +106,30 @@ class AudioProcessor(object):
   def set_indexes(self, set_index):
     return self.data_index[set_index] if set_index in {'training', 'validation', 'testing'} else [] 
 
+  def calc_log_mel_spec(self, spectrogram, sample_rate):
+    # Warp the linear scale spectrograms into the mel-scale.
+      num_spectrogram_bins = spectrogram.shape[-1].value
+      
+      lower_edge_hertz, upper_edge_hertz, num_mel_bins = 80.0, 7600.0, 80
+      linear_to_mel_weight_matrix = tf.contrib.signal.linear_to_mel_weight_matrix(
+        num_mel_bins, num_spectrogram_bins, sample_rate, lower_edge_hertz, upper_edge_hertz)
+      
+      mel_spectrogram = tf.tensordot(
+        tf.abs(spectrogram), linear_to_mel_weight_matrix, 1)
+      mel_spectrogram.set_shape(spectrogram.shape[:-1].concatenate(
+        linear_to_mel_weight_matrix.shape[-1:]))
+
+      # Compute a stabilized log to get log-magnitude mel-scale spectrogram.
+      return tf.log(mel_spectrogram + 1e-6)
+
+  def calc_mfcc(self, spectrogram, dct_coefficient_count, sample_rate):
+    log_mel_spectrogram = self.calc_log_mel_spec(spectrogram, sample_rate)
+
+    # Compute MFCCs from log_mel_spectrograms and take the first 13.
+    return tf.contrib.signal.mfccs_from_log_mel_spectrograms(
+        log_mel_spectrogram)[..., :dct_coefficient_count]
+
+
   """Builds a TensorFlow graph to apply the input distortions.
 
   Creates a graph that loads a WAVE file, decodes it, calculates a spectrogram, 
@@ -123,8 +147,8 @@ class AudioProcessor(object):
   def prepare_processing_graph(self, model_settings):
     with tf.name_scope('input'):
       self.wav_filename_placeholder_ = tf.placeholder(tf.string, [])
-      waveforme = self.prepare_load_wav_graph("load_old", self.wav_filename_placeholder_, model_settings)
-      spectrogram = self.prepare_spectrogram_graph("spec_old", waveforme, model_settings)
+      waveforme = self.prepare_load_wav_graph("load_new", self.wav_filename_placeholder_, model_settings)
+      spectrogram = self.prepare_spectrogram_graph("spec_new", waveforme, model_settings)
       self.feature = self.prepare_feature_graph(spectrogram, model_settings)
 
   def prepare_load_wav_graph(self, mode, wav_filename_placeholder, model_settings):
@@ -173,6 +197,12 @@ class AudioProcessor(object):
           tf.real(spectrogram),
           model_settings['sample_rate'],
           dct_coefficient_count=model_settings['dct_coefficient_count'])
+    elif model_settings["feature_used"] == "mfcc2":
+      feature = self.calc_mfcc(
+        spectrogram, model_settings['dct_coefficient_count'], model_settings['sample_rate'])
+    elif model_settings["feature_used"] == "log_mel_spectrogram":
+      feature = self.calc_log_mel_spec(
+        spectrogram, model_settings['sample_rate'])
     return feature
 
   """Gather samples from the data set, applying transformations as needed.
