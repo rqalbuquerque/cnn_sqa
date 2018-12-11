@@ -156,7 +156,7 @@ def conv_layer(input_tensor,
       name='weights')
     bias = tf.Variable(tf.zeros([output_maps_count]), name='biases')
 
-    conv = tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME') + bias
+    conv = tf.math.add(tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME'), bias, name='sum')
     norm_conv = batch_normalization(conv, output_maps_count, phase_train)
     relu = activation(norm_conv, "relu")
 
@@ -193,7 +193,7 @@ def fully_connected(input_tensor, input_units, hidden_units):
     tf.summary.histogram('weights', weights)
     tf.summary.histogram('bias', bias)
 
-    return tf.matmul(input_tensor, weights) + bias
+    return tf.math.add(tf.matmul(input_tensor, weights), bias, name='sum')
 
 """Builds a model of the requested architecture compatible with the settings.
 
@@ -458,16 +458,16 @@ def create_conv2_model(fingerprint_input, model_settings):
                        phase_train)
 
   # pooling
-  pooling = x_pooling(conv_3, 
-                       model_settings['pooling'], 
-                       [1, 2, 2, 1], 
-                       [1, 2, 2, 1], 
-                       'SAME')
+  # pooling = x_pooling(conv_3, 
+  #                      model_settings['pooling'], 
+  #                      [1, 2, 2, 1], 
+  #                      [1, 2, 2, 1], 
+  #                      'SAME')
 
   # flattened pooling
-  [_, output_height, output_width, output_depth] = pooling.get_shape()
+  [_, output_height, output_width, output_depth] = conv_3.get_shape()
   element_count = int(output_height * output_width * output_depth)
-  flattened = tf.reshape(pooling, [-1, element_count])
+  flattened = tf.reshape(conv_3, [-1, element_count])
 
   # config fc layers
   fc_outputs_count = list(map(int, model_settings['hidden_units'].split(";")))
@@ -478,6 +478,7 @@ def create_conv2_model(fingerprint_input, model_settings):
 
   # regression 
   estimator = fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1)
+  
   return estimator, phase_train
 
 
