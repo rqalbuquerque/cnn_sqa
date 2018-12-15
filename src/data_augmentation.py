@@ -10,13 +10,28 @@ import glob
 import numpy as np
 import soundfile as sf
 
-"""Flip the speech files along ot time axis.
+"""Flip the speech data along ot time axis.
 
 Args:
-  input_dir: Path of the data samples.
-  output_dir: Path of the new data samples.
+  data: sample audio
+  output: output flipped audio
 """
-def flip(input_dir, output_dir, ext):
+def flip(data):
+  return np.flip(data)
+
+"""Random circular shift the speech data along ot time axis.
+
+Args:
+  data: sample audio
+  n: points of random shift
+  output: output shifted sample
+"""
+def random_circular_shift(data):
+  [index] = np.random.randint(int(0.1*len(data)), int(0.9*len(data)),1)
+  return np.concatenate((data[index:], data[0:index]))
+
+
+def apply(input_dir, output_dir, ext):
 	# Get all subfolders
     database = [x[0] for x in os.walk(input_dir)]
 
@@ -25,7 +40,7 @@ def flip(input_dir, output_dir, ext):
       for filepath in glob.glob(os.path.join(subfolder, '*.' + ext)):
         data, rate = sf.read(filepath)
         name = os.path.splitext(filepath)[0]
-        sf.write(name + "_flipped.wav", np.flip(data), rate)
+        sf.write(name + "_flipped.wav", flip(data), rate)
 
 if __name__ == '__main__':
 	input_dir= '../database/speech_dataset'

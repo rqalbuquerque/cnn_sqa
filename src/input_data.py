@@ -14,6 +14,8 @@ import sys
 import numpy as np
 from six.moves import xrange
 
+import data_augmentation
+
 import tensorflow as tf
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 from tensorflow.python.ops import io_ops
@@ -38,21 +40,30 @@ def which_set(filename, validation_percentage, testing_percentage):
   base_name = os.path.basename(filename)
   hash_name_hashed = hashlib.sha1(compat.as_bytes(base_name)).hexdigest()
   percentage_hash = ((int(hash_name_hashed, 16) % (MAX_NUM_WAVS_PER_CLASS + 1)) * (100.0 / MAX_NUM_WAVS_PER_CLASS))
+ 
   if percentage_hash < validation_percentage:
     result = 'validation'
   elif percentage_hash < (testing_percentage + validation_percentage):
     result = 'testing'
   else:
     result = 'training'
-
+ 
   return result
+
+
+def apply_data_augmentation(data, mode):
+  if mode == 'flip':
+    return data_augmentation.flip(data)
+  elif mode == 'random_circular_shift':
+    return data_augmentation.random_circular_shift(data)
 
 """Handles loading, partitioning, and preparing audio training data."""
 class AudioProcessor(object):
 
   def __init__(self, data_dir, validation_percentage, testing_percentage, model_settings):
     self.prepare_data_index(data_dir, validation_percentage, testing_percentage)
-    self.prepare_processing_graph(model_settings)
+    self.prepare_processing_input_graph(model_settings)
+    self.prepare_processing_feature_graph(model_settings)
 
   """Prepares a list of the samples organized by set.
 
@@ -144,12 +155,16 @@ class AudioProcessor(object):
   Args:
     model_settings: Information about the current model being trained.
   """
-  def prepare_processing_graph(self, model_settings):
+  def prepare_processing_input_graph(self, model_settings):
     with tf.name_scope('input'):
-      self.wav_filename_placeholder_ = tf.placeholder(tf.string, [])
-      waveforme = self.prepare_load_wav_graph("load_new", self.wav_filename_placeholder_, model_settings)
-      spectrogram = self.prepare_spectrogram_graph("spec_new", waveforme, model_settings)
-      self.feature = self.prepare_feature_graph(spectrogram, model_settings)
+      self.wav_filename_placeholder_ = tf.placeholder(tf.string, [], 'file_name')
+      self.waveforme = self.prepare_load_wav_graph("load_old", self.wav_filename_placeholder_, model_settings)
+
+  def prepare_processing_feature_graph(self, model_settings):
+    with tf.name_scope('feature'):
+      self.waveforme_placeholder_ = tf.placeholder(tf.float32, [model_settings['desired_samples'], 1], 'waveform')
+      self.spectrogram = self.prepare_spectrogram_graph("spec_old", self.waveforme_placeholder_, model_settings)
+      self.feature = self.prepare_feature_graph(self.spectrogram, model_settings)
 
   def prepare_load_wav_graph(self, mode, wav_filename_placeholder, model_settings):
     if mode == "load_old":
@@ -212,7 +227,7 @@ class AudioProcessor(object):
   validation always uses the same samples, reducing noise in the metrics.
 
   Args:
-    how_many: Desired number of samples to return. -1 means the entire
+    qty: Desired number of samples to return. -1 means the entire
       contents of this partition.
     offset: Where to start when fetching deterministically.
     model_settings: Information about the current model being trained.
@@ -225,34 +240,48 @@ class AudioProcessor(object):
     one-hot form.
   """
   # Pick one of the partitions to choose samples from.
-  def get_data(self, how_many, offset, model_settings, mode, sess):
-    candidates = self.data_index[mode]
-    if how_many == -1:
-      sample_count = len(candidates)
-    else:
-      sample_count = max(0, min(how_many, len(candidates) - offset))
+  def get_data(self, qty, offset, model_settings, mode, sess):
+    candidates, total = self.data_index[mode], len(self.data_index[mode])
+    sample_count = total if qty < 1 else max(1, min(qty, total - offset))
     
+    # Data augmentation algorithms
+    modes = list(model_settings['data_aug_algorithms'].split(';'))
+    variations_count = len(modes) + 1
+
     # Data and scores will be populated and returned.
-    data = np.zeros((sample_count, model_settings['fingerprint_size']))
-    scores = np.zeros((sample_count, 1))
-    pick_deterministically = (mode != 'training')
+    data = np.zeros((sample_count*variations_count, model_settings['fingerprint_size']))
+    scores = np.zeros((sample_count*variations_count, 1))
 
     # Use the processing graph created earlier to repeatedly to generate the
     # final output sample data we'll use in training.
     for i in xrange(offset, offset + sample_count):
       # Pick which audio sample to use.
-      if how_many == -1 or pick_deterministically:
+      if qty < 1 or (mode != 'training'):
         sample_index = i
       else:
-        sample_index = np.random.randint(len(candidates))
-      sample = candidates[sample_index]
+        sample_index = np.random.randint(total)
+      original_sample = candidates[sample_index]
 
       input_dict = {
-          self.wav_filename_placeholder_: sample['file']
+          self.wav_filename_placeholder_: original_sample['file'] 
       }
 
-      # Run the graph to produce the output audio.
-      data[i - offset, :] = sess.run(self.feature, feed_dict=input_dict).flatten()
-      scores[i - offset] = sample['score']
+      # Run the graph to produce the original waveform.
+      original_waveform = sess.run(self.waveforme, feed_dict=input_dict).flatten()
+      original_score = original_sample['score']
+
+      # generate data augmentation variations
+      variations = (original_waveform,)
+      for j in xrange(0,variations_count-1):
+        variations += (apply_data_augmentation(original_waveform, modes[j]),)
+
+      # Run the graph to produce the output feature.
+      for j in xrange(0,variations_count):
+        input_dict = {
+          self.waveforme_placeholder_: np.transpose([variations[j]])
+        } 
+
+        data[i + j - offset, :] = sess.run(self.feature, feed_dict=input_dict).flatten()
+        scores[i + j - offset] = original_sample['score']
 
     return data, scores

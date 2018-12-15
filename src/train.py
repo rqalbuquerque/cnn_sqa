@@ -43,6 +43,7 @@ def main(argv):
       FLAGS.clip_duration_ms, 
       FLAGS.window_size_ms,
       FLAGS.window_stride_ms, 
+      FLAGS.data_aug_algorithms,
       FLAGS.feature_used,
       FLAGS.dct_coefficient_count,
       FLAGS.conv_layers,

@@ -41,12 +41,12 @@ def set_flags(configs={}):
   parser.add_argument(
       '--batch_size',
       type=int,
-      default=configs.get('batch_size', 30),
+      default=configs.get('batch_size', 10),
       help='How many items to train with at once')
   parser.add_argument(
       '--training_steps',
       type=str,
-      default=configs.get('training_steps', '5;5'),
+      default=configs.get('training_steps', '5000;1000'),
       help='How many training loops to run')  
   parser.add_argument(
       '--learning_rate',
@@ -66,6 +66,13 @@ def set_flags(configs={}):
       default=configs.get('clip_duration_ms', 8000),
       help='Expected duration in milliseconds of the wavs')
 
+# config Data Augmentation
+  parser.add_argument(
+      '--data_aug_algorithms',
+      type=str,
+      default=configs.get('data_aug_algorithms', 'random_circular_shift;flip'),
+      help='Expected sample rate of the wavs')
+
 # config Spectrogram
   parser.add_argument(
       '--window_size_ms',
@@ -80,7 +87,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--feature_used',
       type=str,
-      default=configs.get('feature_used', 'mfcc2'),
+      default=configs.get('feature_used', 'mfcc'),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--dct_coefficient_count',
@@ -97,27 +104,27 @@ def set_flags(configs={}):
   parser.add_argument(
       '--conv_layers',
       type=int,
-      default=configs.get('conv_layers', 2),
+      default=configs.get('conv_layers', 3),
       help='How many convolutional layers to use')
   parser.add_argument(
       '--filter_width',
       type=str,
-      default=configs.get('filter_width', "5;10"),
+      default=configs.get('filter_width', "5;10;15"),
       help='What filter width to use')
   parser.add_argument(
       '--filter_height',
       type=str,
-      default=configs.get('filter_height', "5;10"),
+      default=configs.get('filter_height', "5;10;15"),
       help='What filter height to use')
   parser.add_argument(
       '--filter_count',
       type=str,
-      default=configs.get('filter_count', "10;10"),
+      default=configs.get('filter_count', "30;30;30"),
       help='What filter count to use')
   parser.add_argument(
       '--stride',
       type=str,
-      default=configs.get('stride', "1;1"),
+      default=configs.get('stride', "1;1;1"),
       help='What long stride to use')
   parser.add_argument(
       '--pooling',
@@ -134,7 +141,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--hidden_units',
       type=str,
-      default=configs.get('hidden_units', "100"),
+      default=configs.get('hidden_units', "400"),
       help='Number of units in hidden layers.')
 
   parser.add_argument(

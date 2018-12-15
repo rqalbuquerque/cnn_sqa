@@ -24,6 +24,7 @@ def prepare_model_settings(sample_rate,
                            clip_duration_ms,
                            window_size_ms, 
                            window_stride_ms,
+                           data_aug_algorithms,
                            feature_used,
                            dct_coefficient_count,
                            conv_layers,
@@ -52,6 +53,7 @@ def prepare_model_settings(sample_rate,
       'fingerprint_size': fingerprint_size,
       'sample_rate': sample_rate,
       'spectrogram_length': spectrogram_length,
+      'data_aug_algorithms': data_aug_algorithms,
       'feature_used': feature_used,
       'dct_coefficient_count': dct_coefficient_count,
       'conv_layers': conv_layers,
@@ -498,11 +500,11 @@ def create_conv_test(fingerprint_input, model_settings):
 
   # conv layer 1
   conv_1 = conv_layer(fingerprint, 
-                           filters_height[0], 
-                           filters_width[0], 
-                           int(fingerprint.shape[-1]), 
-                           conv_stride[0],
-                           feature_maps_count[0])
+                       filters_height[0], 
+                       filters_width[0], 
+                       int(fingerprint.shape[-1]), 
+                       conv_stride[0],
+                       feature_maps_count[0])
   norm_conv_1 = batch_normalization(conv_1, feature_maps_count[0], phase_train)
   relu_1 = activation(norm_conv_1, "relu")
 
