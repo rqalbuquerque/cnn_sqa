@@ -245,8 +245,8 @@ class AudioProcessor(object):
     sample_count = total if qty < 1 else max(1, min(qty, total - offset))
     
     # Data augmentation algorithms
-    modes = list(model_settings['data_aug_algorithms'].split(';'))
-    variations_count = len(modes) + 1
+    approaches = [] if (mode == 'training') else list(model_settings['data_aug_algorithms'].split(';'))
+    variations_count = len(approaches) + 1
 
     # Data and scores will be populated and returned.
     data = np.zeros((sample_count*variations_count, model_settings['fingerprint_size']))
@@ -273,7 +273,7 @@ class AudioProcessor(object):
       # generate data augmentation variations
       variations = (original_waveform,)
       for j in xrange(0,variations_count-1):
-        variations += (apply_data_augmentation(original_waveform, modes[j]),)
+        variations += (apply_data_augmentation(original_waveform, approaches[j]),)
 
       # Run the graph to produce the output feature.
       for j in xrange(0,variations_count):
