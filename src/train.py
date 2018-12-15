@@ -205,7 +205,7 @@ def main(argv):
       # tf.logging.info('Saving to "%s-%d"', checkpoint_path, training_step)
       # saver.save(sess, checkpoint_path, global_step=training_step)
 
-  print('\n')
+  tf.logging.info('')
   tf.logging.info('****************** Testing ******************')
   
   set_size = audio_processor.set_size('testing')

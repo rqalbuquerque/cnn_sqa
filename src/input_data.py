@@ -245,7 +245,10 @@ class AudioProcessor(object):
     sample_count = total if qty < 1 else max(1, min(qty, total - offset))
     
     # Data augmentation algorithms
-    approaches = [] if (mode == 'training') else list(model_settings['data_aug_algorithms'].split(';'))
+    if mode == 'training':
+      approaches = [x for x in list(model_settings['data_aug_algorithms'].split(';')) if x is not '']
+    else:
+      approaches = []
     variations_count = len(approaches) + 1
 
     # Data and scores will be populated and returned.
