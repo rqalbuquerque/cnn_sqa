@@ -423,101 +423,55 @@ def create_conv2_model(fingerprint_input, model_settings):
   fingerprint = tf.reshape(fingerprint_input,
                   [-1, spectrogram_length, dct_coefficient_count, 1])
   
-  tf.summary.image('input', fingerprint, 1)
-
-  # config conv
   phase_train = tf.placeholder(tf.bool, name='phase_train')
-  feature_maps_count = list(map(int, model_settings['filter_count'].split(";")))
-  filters_width = list(map(int, model_settings['filter_width'].split(";")))
-  filters_height = list(map(int, model_settings['filter_height'].split(";")))
-  conv_stride = list(map(int, model_settings['stride'].split(";")))
 
   # conv layer 1
   conv_1 = conv_layer(fingerprint, 
-                       filters_height[0], 
-                       filters_width[0], 
+                       model_settings['filter_height'][0], 
+                       model_settings['filter_width'][0], 
                        int(fingerprint.shape[-1]), 
-                       conv_stride[0],
-                       feature_maps_count[0],
+                       model_settings['stride'][0],
+                       model_settings['filter_count'][0],
                        phase_train)
 
   # conv layer 2
   conv_2 = conv_layer(conv_1, 
-                       filters_height[1], 
-                       filters_width[1], 
+                       model_settings['filter_height'][1], 
+                       model_settings['filter_width'][1], 
                        int(conv_1.shape[-1]), 
-                       conv_stride[1],
-                       feature_maps_count[1],
+                       model_settings['stride'][1],
+                       model_settings['filter_count'][1],
                        phase_train)
 
   # conv layer 3
   conv_3 = conv_layer(conv_2, 
-                       filters_height[2], 
-                       filters_width[2], 
+                       model_settings['filter_height'][2], 
+                       model_settings['filter_width'][2], 
                        int(conv_2.shape[-1]), 
-                       conv_stride[2],
-                       feature_maps_count[2],
+                       model_settings['stride'][2],
+                       model_settings['filter_count'][2],
                        phase_train)
 
   # pooling
-  # pooling = x_pooling(conv_3, 
-  #                      model_settings['pooling'], 
-  #                      [1, 2, 2, 1], 
-  #                      [1, 2, 2, 1], 
-  #                      'SAME')
+  pooling = x_pooling(conv_3, 
+                       model_settings['pooling'], 
+                       [1, 2, 2, 1], 
+                       [1, 2, 2, 1], 
+                       'SAME')
 
   # flattened pooling
   [_, output_height, output_width, output_depth] = conv_3.get_shape()
   element_count = int(output_height * output_width * output_depth)
   flattened = tf.reshape(conv_3, [-1, element_count])
 
-  # config fc layers
-  fc_outputs_count = list(map(int, model_settings['hidden_units'].split(";")))
-
   # fc layer 1
-  fc_1 = fully_connected(flattened, element_count, fc_outputs_count[0])
+  fc_1 = fully_connected(flattened, element_count, model_settings['hidden_units'][0])
   final_fc_relu = activation(fc_1, "relu")
 
   # regression 
   estimator = fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1)
   
-  return estimator, phase_train
-
-
-def create_conv_test(fingerprint_input, model_settings):
-  dct_coefficient_count = model_settings['dct_coefficient_count']
-  spectrogram_length = model_settings['spectrogram_length']
-  fingerprint = tf.reshape(fingerprint_input,
-                  [-1, spectrogram_length, dct_coefficient_count, 1])
-
-  # config conv
-  phase_train = tf.placeholder(tf.bool, name='phase_train')
-  feature_maps_count = list(map(int, model_settings['filter_count'].split(";")))
-  filters_width = list(map(int, model_settings['filter_width'].split(";")))
-  filters_height = list(map(int, model_settings['filter_height'].split(";")))
-  conv_stride = list(map(int, model_settings['stride'].split(";")))
-  fc_outputs_count = list(map(int, model_settings['hidden_units'].split(";")))
-
-  # conv layer 1
-  conv_1 = conv_layer(fingerprint, 
-                       filters_height[0], 
-                       filters_width[0], 
-                       int(fingerprint.shape[-1]), 
-                       conv_stride[0],
-                       feature_maps_count[0])
-  norm_conv_1 = batch_normalization(conv_1, feature_maps_count[0], phase_train)
-  relu_1 = activation(norm_conv_1, "relu")
-
-  # flattened pooling
-  [_, output_height, output_width, output_depth] = relu_1.get_shape()
-  element_count = int(output_height * output_width * output_depth)
-  flattened = tf.reshape(relu_1, [-1, element_count])
-
-  # fc layer 1
-  fc_1 = fully_connected(flattened, element_count, fc_outputs_count[0])
-  final_fc_relu = activation(fc_1, "relu")
-
-  # regression 
-  estimator = fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1)
+  # log
+  tf.summary.image('input', fingerprint, 1)
 
   return estimator, phase_train

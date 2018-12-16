@@ -122,8 +122,8 @@ def main(argv):
   # Save graph.pbtxt.
   #tf.train.write_graph(sess.graph_def, FLAGS.train_dir, FLAGS.model_architecture + '.pbtxt')
 
-  training_steps_list = list(map(int, FLAGS.training_steps.split(';')))
-  learning_rates_list = list(map(float, FLAGS.learning_rate.split(';')))
+  training_steps_list = FLAGS.training_steps
+  learning_rates_list = FLAGS.learning_rate
   if len(training_steps_list) != len(learning_rates_list):
     raise Exception(
         '--training_steps and --learning_rate must be equal length '

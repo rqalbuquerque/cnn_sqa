@@ -241,15 +241,11 @@ class AudioProcessor(object):
   """
   # Pick one of the partitions to choose samples from.
   def get_data(self, qty, offset, model_settings, mode, sess):
-    candidates, total = self.data_index[mode], len(self.data_index[mode])
+    candidates, total = self.data_index[mode], self.set_size(mode)
     sample_count = total if qty < 1 else max(1, min(qty, total - offset))
     
     # Data augmentation algorithms
-    if mode == 'training':
-      approaches = [x for x in list(model_settings['data_aug_algorithms'].split(';')) if x is not '']
-    else:
-      approaches = []
-    variations_count = len(approaches) + 1
+    variations_count = (len(model_settings['data_aug_algorithms']) + 1) if (mode == 'training') else 1
 
     # Data and scores will be populated and returned.
     data = np.zeros((sample_count*variations_count, model_settings['fingerprint_size']))
@@ -259,10 +255,7 @@ class AudioProcessor(object):
     # final output sample data we'll use in training.
     for i in xrange(offset, offset + sample_count):
       # Pick which audio sample to use.
-      if qty < 1 or (mode != 'training'):
-        sample_index = i
-      else:
-        sample_index = np.random.randint(total)
+      sample_index = np.random.randint(total) if (mode == 'training') else i
       original_sample = candidates[sample_index]
 
       input_dict = {
@@ -276,7 +269,7 @@ class AudioProcessor(object):
       # generate data augmentation variations
       variations = (original_waveform,)
       for j in xrange(0,variations_count-1):
-        variations += (apply_data_augmentation(original_waveform, approaches[j]),)
+        variations += (apply_data_augmentation(original_waveform, model_settings['data_aug_algorithms'][j]),)
 
       # Run the graph to produce the output feature.
       for j in xrange(0,variations_count):
@@ -285,6 +278,6 @@ class AudioProcessor(object):
         } 
 
         data[i + j - offset, :] = sess.run(self.feature, feed_dict=input_dict).flatten()
-        scores[i + j - offset] = original_sample['score']
+        scores[i + j - offset] = original_score
 
     return data, scores

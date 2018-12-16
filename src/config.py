@@ -31,27 +31,27 @@ def set_flags(configs={}):
   parser.add_argument(
       '--testing_percentage',
       type=int,
-      default=configs.get('testing_percentage', 5),
+      default=configs.get('testing_percentage', 20),
       help='What percentage of wavs to use as a test set.')
   parser.add_argument(
       '--validation_percentage',
       type=int,
-      default=configs.get('validation_percentage', 10),
+      default=configs.get('validation_percentage', 20),
       help='What percentage of wavs to use as a validation set.')
   parser.add_argument(
       '--batch_size',
       type=int,
-      default=configs.get('batch_size', 10),
+      default=configs.get('batch_size', 2),
       help='How many items to train with at once')
   parser.add_argument(
       '--training_steps',
       type=str,
-      default=configs.get('training_steps', '5000;1000'),
+      default=configs.get('training_steps', [5,1]),
       help='How many training loops to run')  
   parser.add_argument(
       '--learning_rate',
-      type=str,
-      default=configs.get('learning_rate', '0.01;0.001'),
+      type=list,
+      default=configs.get('learning_rate', [0.01,0.001]),
       help='How large a learning rate to use when training.')
 
 # config Signal
@@ -69,8 +69,8 @@ def set_flags(configs={}):
 # config Data Augmentation
   parser.add_argument(
       '--data_aug_algorithms',
-      type=str,
-      default=configs.get('data_aug_algorithms', 'random_circular_shift;flip'),
+      type=list,
+      default=configs.get('data_aug_algorithms', ['flip']),
       help='Expected sample rate of the wavs')
 
 # config Spectrogram
@@ -108,23 +108,23 @@ def set_flags(configs={}):
       help='How many convolutional layers to use')
   parser.add_argument(
       '--filter_width',
-      type=str,
-      default=configs.get('filter_width', "5;10;15"),
+      type=list,
+      default=configs.get('filter_width', [1,2,3]),
       help='What filter width to use')
   parser.add_argument(
       '--filter_height',
-      type=str,
-      default=configs.get('filter_height', "5;10;15"),
+      type=list,
+      default=configs.get('filter_height', [1,2,3]),
       help='What filter height to use')
   parser.add_argument(
       '--filter_count',
-      type=str,
-      default=configs.get('filter_count', "30;30;30"),
+      type=list,
+      default=configs.get('filter_count', [1,2,3]),
       help='What filter count to use')
   parser.add_argument(
       '--stride',
-      type=str,
-      default=configs.get('stride', "1;1;1"),
+      type=list,
+      default=configs.get('stride', [1,1,1]),
       help='What long stride to use')
   parser.add_argument(
       '--pooling',
@@ -141,13 +141,13 @@ def set_flags(configs={}):
   parser.add_argument(
       '--hidden_units',
       type=str,
-      default=configs.get('hidden_units', "400"),
+      default=configs.get('hidden_units', [10]),
       help='Number of units in hidden layers.')
 
   parser.add_argument(
       '--eval_step_interval',
       type=int,
-      default=configs.get('eval_step_interval', 10),
+      default=configs.get('eval_step_interval', 2),
       help='How often to evaluate the training results.')
   parser.add_argument(
       '--save_step_interval',
