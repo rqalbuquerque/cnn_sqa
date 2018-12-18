@@ -144,7 +144,7 @@ def main(argv):
         break
 
     # Pull the audio samples we'll use for training.
-    train_fingerprints, train_ground_truth = audio_processor.get_data(
+    train_fingerprints, train_ground_truth = audio_processor.get_data_using_librosa(
         FLAGS.batch_size, 0, model_settings, 'training', sess)
 
     # Run the graph with this batch of training data.

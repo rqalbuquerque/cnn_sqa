@@ -11,6 +11,8 @@ import random
 import re
 import sys
 
+import librosa
+import scipy
 import numpy as np
 from six.moves import xrange
 
@@ -278,6 +280,45 @@ class AudioProcessor(object):
         } 
 
         data[i + j - offset, :] = sess.run(self.feature, feed_dict=input_dict).flatten()
+        scores[i + j - offset] = original_score
+
+    return data, scores
+
+
+
+  def get_data_using_librosa(self, qty, offset, model_settings, mode, sess):
+    candidates, total = self.data_index[mode], self.set_size(mode)
+    sample_count = total if qty < 1 else max(1, min(qty, total - offset))
+    
+    # Data augmentation algorithms
+    variations_count = (len(model_settings['data_aug_algorithms']) + 1) if (mode == 'training') else 1
+
+    # Data and scores will be populated and returned.
+    data = np.zeros((sample_count*variations_count, model_settings['fingerprint_size']))
+    scores = np.zeros((sample_count*variations_count, 1))
+
+    # Use the processing graph created earlier to repeatedly to generate the
+    # final output sample data we'll use in training.
+    for i in xrange(offset, offset + sample_count):
+      # Pick which audio sample to use.
+      sample_index = np.random.randint(total) if (mode == 'training') else i
+
+      # Run the graph to produce the original waveform.
+      original_waveform, sr = librosa.load(candidates[sample_index]['file'], model_settings['sample_rate'])
+      original_score = candidates[sample_index]['score']
+
+      # generate data augmentation variations
+      variations = (original_waveform,)
+      for j in xrange(0,variations_count-1):
+        variations += (apply_data_augmentation(original_waveform, model_settings['data_aug_algorithms'][j]),)
+
+      # Run the graph to produce the output feature.
+      for j in xrange(0,variations_count):
+        feature = librosa.feature.mfcc(y=variations[j], sr=model_settings['sample_rate'], 
+          hop_length=model_settings['window_stride_samples'], n_fft=model_settings['window_size_samples'], 
+          n_mfcc=model_settings['dct_coefficient_count'])
+
+        data[i + j - offset, :] = feature[:, 2:-2].flatten()
         scores[i + j - offset] = original_score
 
     return data, scores
