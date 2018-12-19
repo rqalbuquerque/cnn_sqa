@@ -56,6 +56,11 @@ def set_flags(configs={}):
 
 # config Signal
   parser.add_argument(
+      '--input_processing_lib',
+      type=str,
+      default=configs.get('input_processing_lib', 'librosa'),
+      help='Processing library of audio samples')
+  parser.add_argument(
       '--sample_rate',
       type=int,
       default=configs.get('sample_rate', 16000),
@@ -70,7 +75,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--data_aug_algorithms',
       type=list,
-      default=configs.get('data_aug_algorithms', ['flip']),
+      default=configs.get('data_aug_algorithms', []),
       help='Expected sample rate of the wavs')
 
 # config Spectrogram
@@ -85,9 +90,9 @@ def set_flags(configs={}):
       default=configs.get('window_stride_ms', 8.0),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
-      '--feature_used',
+      '--feature',
       type=str,
-      default=configs.get('feature_used', 'mfcc'),
+      default=configs.get('feature', 'mfcc'),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--dct_coefficient_count',
@@ -99,7 +104,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default=configs.get('model_architecture', 'conv2'),
+      default=configs.get('model_architecture', 'conv'),
       help='What model architecture to use')
   parser.add_argument(
       '--conv_layers',

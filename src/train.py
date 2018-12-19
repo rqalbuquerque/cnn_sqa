@@ -39,12 +39,13 @@ def main(argv):
 
   # Begin by making sure we have the training data we need.
   model_settings = models.prepare_model_settings(
+      FLAGS.input_processing_lib,
       FLAGS.sample_rate, 
       FLAGS.clip_duration_ms, 
       FLAGS.window_size_ms,
       FLAGS.window_stride_ms, 
       FLAGS.data_aug_algorithms,
-      FLAGS.feature_used,
+      FLAGS.feature,
       FLAGS.dct_coefficient_count,
       FLAGS.conv_layers,
       FLAGS.filter_width,
@@ -144,7 +145,7 @@ def main(argv):
         break
 
     # Pull the audio samples we'll use for training.
-    train_fingerprints, train_ground_truth = audio_processor.get_data_using_librosa(
+    train_fingerprints, train_ground_truth = audio_processor.get_data(
         FLAGS.batch_size, 0, model_settings, 'training', sess)
 
     # Run the graph with this batch of training data.

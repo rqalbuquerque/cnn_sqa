@@ -53,20 +53,18 @@ def which_set(filename, validation_percentage, testing_percentage):
   return result
 
 
-def apply_data_augmentation(data, mode):
-  if mode == 'flip':
-    return data_augmentation.flip(data)
-  elif mode == 'random_circular_shift':
-    return data_augmentation.random_circular_shift(data)
-
 """Handles loading, partitioning, and preparing audio training data."""
 class AudioProcessor(object):
 
   def __init__(self, data_dir, validation_percentage, testing_percentage, model_settings):
     self.prepare_data_index(data_dir, validation_percentage, testing_percentage)
-    self.prepare_processing_input_graph(model_settings)
-    self.prepare_processing_feature_graph(model_settings)
 
+    if model_settings['input_processing_lib'] == 'tensorflow':
+      self.prepare_processing_input_graph(model_settings)
+      self.prepare_processing_feature_graph(model_settings)
+    elif model_settings['input_processing_lib'] == 'librosa':
+      self.prepare_processing_input_librosa(model_settings)
+      self.prepare_processing_feature_librosa(model_settings)
   """Prepares a list of the samples organized by set.
 
   The training loop needs a list of all the available data.
@@ -119,29 +117,6 @@ class AudioProcessor(object):
   def set_indexes(self, set_index):
     return self.data_index[set_index] if set_index in {'training', 'validation', 'testing'} else [] 
 
-  def calc_log_mel_spec(self, spectrogram, sample_rate):
-    # Warp the linear scale spectrograms into the mel-scale.
-      num_spectrogram_bins = spectrogram.shape[-1].value
-      
-      lower_edge_hertz, upper_edge_hertz, num_mel_bins = 80.0, 7600.0, 80
-      linear_to_mel_weight_matrix = tf.contrib.signal.linear_to_mel_weight_matrix(
-        num_mel_bins, num_spectrogram_bins, sample_rate, lower_edge_hertz, upper_edge_hertz)
-      
-      mel_spectrogram = tf.tensordot(
-        tf.abs(spectrogram), linear_to_mel_weight_matrix, 1)
-      mel_spectrogram.set_shape(spectrogram.shape[:-1].concatenate(
-        linear_to_mel_weight_matrix.shape[-1:]))
-
-      # Compute a stabilized log to get log-magnitude mel-scale spectrogram.
-      return tf.log(mel_spectrogram + 1e-6)
-
-  def calc_mfcc(self, spectrogram, dct_coefficient_count, sample_rate):
-    log_mel_spectrogram = self.calc_log_mel_spec(spectrogram, sample_rate)
-
-    # Compute MFCCs from log_mel_spectrograms and take the first 13.
-    return tf.contrib.signal.mfccs_from_log_mel_spectrograms(
-        log_mel_spectrogram)[..., :dct_coefficient_count]
-
 
   """Builds a TensorFlow graph to apply the input distortions.
 
@@ -151,76 +126,101 @@ class AudioProcessor(object):
   This must be called with an active TensorFlow session running, and it
   creates multiple placeholder inputs, and one output:
 
-    - wav_filename_placeholder_: Filename of the WAV to load.
-    - feature_: Calculated feature
-
-  Args:
-    model_settings: Information about the current model being trained.
+    - wav_filename_placeholder: Filename of the WAV to load.
+    - waveforme_placeholder: Waveform of the WAV to loaded.
+    - feature: Calculated feature
   """
   def prepare_processing_input_graph(self, model_settings):
     with tf.name_scope('input'):
-      self.wav_filename_placeholder_ = tf.placeholder(tf.string, [], 'file_name')
-      self.waveforme = self.prepare_load_wav_graph("load_old", self.wav_filename_placeholder_, model_settings)
+      self.wav_filename_placeholder = tf.placeholder(tf.string, [], 'file_name')
+      self.waveforme = self.prepare_load_wav_graph(self.wav_filename_placeholder, model_settings)
 
   def prepare_processing_feature_graph(self, model_settings):
     with tf.name_scope('feature'):
-      self.waveforme_placeholder_ = tf.placeholder(tf.float32, [model_settings['desired_samples'], 1], 'waveform')
-      self.spectrogram = self.prepare_spectrogram_graph("spec_old", self.waveforme_placeholder_, model_settings)
+      self.waveforme_placeholder = tf.placeholder(tf.float32, [model_settings['desired_samples'], 1], 'waveform')
+      self.spectrogram = self.prepare_spectrogram_graph(self.waveforme_placeholder, model_settings)
       self.feature = self.prepare_feature_graph(self.spectrogram, model_settings)
 
-  def prepare_load_wav_graph(self, mode, wav_filename_placeholder, model_settings):
-    if mode == "load_old":
-      wav_loader = io_ops.read_file(wav_filename_placeholder)
-      wav_decoder = contrib_audio.decode_wav(
-          wav_loader, 
-          desired_channels=1, 
-          desired_samples=model_settings['desired_samples'])
-      return wav_decoder.audio
-    elif mode == "load_new":
-      wav_loader = tf.read_file(wav_filename_placeholder)
-      wav_decoder = tf.contrib.ffmpeg.decode_audio(
-          wav_loader,
-          file_format="wav",
-          samples_per_second=model_settings['sample_rate'],
-          channel_count=1)
-      return tf.transpose(wav_decoder)
+  def prepare_load_wav_graph(self, wav_filename_placeholder, model_settings):
+    wav_loader = io_ops.read_file(wav_filename_placeholder)
+    wav_decoder = contrib_audio.decode_wav(
+        wav_loader, 
+        desired_channels=1, 
+        desired_samples=model_settings['desired_samples'])
+    return wav_decoder.audio
 
-  def prepare_spectrogram_graph(self, mode, waveforme, model_settings):
-    if mode == "spec_old":
-      spectrogram = contrib_audio.audio_spectrogram(
-          waveforme, 
-          window_size=model_settings['window_size_samples'], 
-          stride=model_settings['window_stride_samples'], 
-          magnitude_squared=False)
-      return spectrogram
-    elif mode == "spec_new":
-      spectrogram = tf.contrib.signal.stft(
-          waveforme, 
-          frame_length=model_settings['window_size_samples'], 
-          frame_step=model_settings['window_stride_samples'], 
-          fft_length=model_settings['window_size_samples'])
-      return spectrogram
+  def prepare_spectrogram_graph(self, waveforme, model_settings):
+    spectrogram = contrib_audio.audio_spectrogram(
+        waveforme, 
+        window_size=model_settings['window_size_samples'], 
+        stride=model_settings['window_stride_samples'], 
+        magnitude_squared=False)
+    return spectrogram
 
   def prepare_feature_graph(self, spectrogram, model_settings):
-    if model_settings["feature_used"] == "spectrogram":
+    if model_settings["feature"] == "spectrogram":
       frames_count = model_settings["spectrogram_length"]
-      coeffic_count = model_settings['dct_coefficient_count']
+      coefficient_count = model_settings['dct_coefficient_count']
       feature = tf.slice(
-          spectrogram, 
-          [0,0,0],
-          [-1,frames_count,coeffic_count])
-    elif model_settings["feature_used"] == "mfcc": 
+          spectrogram, [0,0,0], [-1,frames_count,coefficient_count])
+    elif model_settings["feature"] == "mfcc": 
       feature = contrib_audio.mfcc(
           tf.real(spectrogram),
           model_settings['sample_rate'],
           dct_coefficient_count=model_settings['dct_coefficient_count'])
-    elif model_settings["feature_used"] == "mfcc2":
-      feature = self.calc_mfcc(
-        spectrogram, model_settings['dct_coefficient_count'], model_settings['sample_rate'])
-    elif model_settings["feature_used"] == "log_mel_spectrogram":
-      feature = self.calc_log_mel_spec(
-        spectrogram, model_settings['sample_rate'])
     return feature
+
+  def load_by_tensorflow(filename):
+    input_dict = {
+        self.wav_filename_placeholder: filename
+    }
+    return (sess.run(self.waveforme, feed_dict=input_dict).flatten(), 0)
+
+  def featureby_tensorflow(data):
+    input_dict = {
+      self.waveforme_placeholder: data
+    } 
+    return sess.run(self.feature, feed_dict=input_dict).flatten()
+
+
+  """Load wav and generates features using Librosa.
+
+  Directly load a .wav file and generates the choosed feature
+  """
+  def prepare_processing_input_librosa(self, model_settings):
+    self.sr = model_settings['sample_rate']
+    self.duration = model_settings['desired_samples']/self.sr
+
+  def prepare_processing_feature_librosa(self, model_settings):
+    self.feature = model_settings['feature']
+    self.hop_length = model_settings['window_stride_samples'] 
+    self.n_fft = model_settings['window_size_samples'] 
+    self.n_mfcc = model_settings['dct_coefficient_count']
+
+  def load_by_librosa(self, filename):
+    return librosa.load(filename, sr=self.sr, duration=self.duration)
+
+  def feature_by_librosa(self, data):
+    if self.feature == "mfcc":
+      return librosa.feature.mfcc(
+        y=data, sr=self.sr, hop_length=self.hop_length, 
+        n_fft=self.n_fft, n_mfcc=self.n_mfcc)[:, 2:-2].flatten()
+
+
+  """Redirects load and feature extraction.
+
+  """
+  def load_wav(self, filename, lib):
+    if lib == 'tensorflow':
+      return self.load_by_tensorflow(filename)
+    elif lib == 'librosa':
+      return self.load_by_librosa(filename)
+
+  def feature_extraction(self, data, lib):
+    if lib == 'tensorflow':
+      return self.featureby_tensorflow(data)
+    elif lib == 'librosa':
+      return self.feature_by_librosa(data)
 
   """Gather samples from the data set, applying transformations as needed.
 
@@ -260,65 +260,19 @@ class AudioProcessor(object):
       sample_index = np.random.randint(total) if (mode == 'training') else i
       original_sample = candidates[sample_index]
 
-      input_dict = {
-          self.wav_filename_placeholder_: original_sample['file'] 
-      }
-
       # Run the graph to produce the original waveform.
-      original_waveform = sess.run(self.waveforme, feed_dict=input_dict).flatten()
+      original_waveform, sr = self.load_wav(original_sample['file'], model_settings['input_processing_lib'])
       original_score = original_sample['score']
 
-      # generate data augmentation variations
+      # Generates data augmentation variations
       variations = (original_waveform,)
       for j in xrange(0,variations_count-1):
-        variations += (apply_data_augmentation(original_waveform, model_settings['data_aug_algorithms'][j]),)
+        variations += (data_augmentation.apply(original_waveform, model_settings['data_aug_algorithms'][j]),)
 
       # Run the graph to produce the output feature.
       for j in xrange(0,variations_count):
-        input_dict = {
-          self.waveforme_placeholder_: np.transpose([variations[j]])
-        } 
-
-        data[i + j - offset, :] = sess.run(self.feature, feed_dict=input_dict).flatten()
+        data[i + j - offset, :] = self.feature_extraction(variations[j], model_settings['input_processing_lib'])
         scores[i + j - offset] = original_score
 
     return data, scores
 
-
-
-  def get_data_using_librosa(self, qty, offset, model_settings, mode, sess):
-    candidates, total = self.data_index[mode], self.set_size(mode)
-    sample_count = total if qty < 1 else max(1, min(qty, total - offset))
-    
-    # Data augmentation algorithms
-    variations_count = (len(model_settings['data_aug_algorithms']) + 1) if (mode == 'training') else 1
-
-    # Data and scores will be populated and returned.
-    data = np.zeros((sample_count*variations_count, model_settings['fingerprint_size']))
-    scores = np.zeros((sample_count*variations_count, 1))
-
-    # Use the processing graph created earlier to repeatedly to generate the
-    # final output sample data we'll use in training.
-    for i in xrange(offset, offset + sample_count):
-      # Pick which audio sample to use.
-      sample_index = np.random.randint(total) if (mode == 'training') else i
-
-      # Run the graph to produce the original waveform.
-      original_waveform, sr = librosa.load(candidates[sample_index]['file'], model_settings['sample_rate'])
-      original_score = candidates[sample_index]['score']
-
-      # generate data augmentation variations
-      variations = (original_waveform,)
-      for j in xrange(0,variations_count-1):
-        variations += (apply_data_augmentation(original_waveform, model_settings['data_aug_algorithms'][j]),)
-
-      # Run the graph to produce the output feature.
-      for j in xrange(0,variations_count):
-        feature = librosa.feature.mfcc(y=variations[j], sr=model_settings['sample_rate'], 
-          hop_length=model_settings['window_stride_samples'], n_fft=model_settings['window_size_samples'], 
-          n_mfcc=model_settings['dct_coefficient_count'])
-
-        data[i + j - offset, :] = feature[:, 2:-2].flatten()
-        scores[i + j - offset] = original_score
-
-    return data, scores

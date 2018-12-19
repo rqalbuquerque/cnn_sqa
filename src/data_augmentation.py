@@ -31,7 +31,13 @@ def random_circular_shift(data):
   return np.concatenate((data[index:], data[0:index]))
 
 
-def apply(input_dir, output_dir, ext):
+def apply(data, mode):
+  if mode == 'flip':
+    return data_augmentation.flip(data)
+  elif mode == 'random_circular_shift':
+    return data_augmentation.random_circular_shift(data)
+
+def load_and_apply(input_dir, output_dir, ext):
 	# Get all subfolders
     database = [x[0] for x in os.walk(input_dir)]
 

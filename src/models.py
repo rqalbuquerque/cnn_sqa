@@ -20,12 +20,13 @@ Args:
 Returns:
   Dictionary containing common settings.
 """
-def prepare_model_settings(sample_rate, 
+def prepare_model_settings(input_processing_lib,
+                           sample_rate, 
                            clip_duration_ms,
                            window_size_ms, 
                            window_stride_ms,
                            data_aug_algorithms,
-                           feature_used,
+                           feature,
                            dct_coefficient_count,
                            conv_layers,
                            filter_width,
@@ -40,6 +41,7 @@ def prepare_model_settings(sample_rate,
   window_size_samples = int(sample_rate * window_size_ms / 1000.0)
   window_stride_samples = int(sample_rate * window_stride_ms / 1000.0)
   length_minus_window = (desired_samples - window_size_samples)
+  
   if length_minus_window < 0:
     spectrogram_length = 0
   else:
@@ -51,10 +53,11 @@ def prepare_model_settings(sample_rate,
       'window_size_samples': window_size_samples,
       'window_stride_samples': window_stride_samples,
       'fingerprint_size': fingerprint_size,
+      'input_processing_lib': input_processing_lib,
       'sample_rate': sample_rate,
       'spectrogram_length': spectrogram_length,
       'data_aug_algorithms': data_aug_algorithms,
-      'feature_used': feature_used,
+      'feature': feature,
       'dct_coefficient_count': dct_coefficient_count,
       'conv_layers': conv_layers,
       'filter_width': filter_width,
@@ -233,150 +236,10 @@ def create_model(fingerprint_input,
                  runtime_settings=None):
 
   if model_architecture == 'conv':
-    return create_conv_model(fingerprint_input, model_settings, is_training)
-  elif model_architecture == 'conv2':
     return create_conv2_model(fingerprint_input, model_settings)
-  elif model_architecture == 'conv_test':
-    return create_conv_test(fingerprint_input, model_settings)
   else:
     raise Exception('model_architecture argument "' + model_architecture +
                     '" not recognized, should be "conv"')
-
-"""Builds a standard convolutional model.
-
-This is roughly, with some different parameters, the network in the:
-'Convolutional Neural Networks for No-Reference Image Quality Assessment' paper:
-http://ieeexplore.ieee.org/document/6909620/
-
-Here's the layout of the graph:
-
-(fingerprint_input)
-        v
-    [Conv2D]<-(weights)
-        v
-    [BiasAdd]<-(bias)
-        v
-      [Relu]
-        v    
-    [Pooling]
-        v
-  [FullConected]
-
-Args:
-  fingerprint_input: TensorFlow node that will output audio feature vectors.
-  model_settings: Dictionary of information about the model.
-  is_training: Whether the model is going to be used for training.
-
-Returns:
-  TensorFlow node outputting logits results, and optionally a dropout placeholder.
-"""
-def create_conv_model(fingerprint_input, model_settings, is_training):
-  if is_training:
-    dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
-  input_frequency_size = model_settings['dct_coefficient_count']
-  input_time_size = model_settings['spectrogram_length']
-  hidden_units = model_settings['hidden_units']
-  stride = model_settings['stride']
-
-  fingerprint_4d = tf.reshape(fingerprint_input,
-                              [-1, input_time_size, input_frequency_size, 1])
-
-  first_filter_width = model_settings['filter_width']
-  first_filter_height = model_settings['filter_width']
-  first_filter_count = model_settings['filter_count']
-
-  # conv
-  first_weights = tf.Variable(
-      tf.truncated_normal(
-          [
-            first_filter_height, 
-            first_filter_width, 
-            1, 
-            first_filter_count
-          ],
-          stddev=0.01))
-  first_bias = tf.Variable(tf.zeros([first_filter_count]))
-  first_conv = tf.nn.conv2d(fingerprint_4d, first_weights, [1, stride, stride, 1],
-                            'SAME') + first_bias
-  first_relu = tf.nn.relu(first_conv)
-  if is_training:
-    first_dropout = tf.nn.dropout(first_relu, dropout_prob)
-  else:
-    first_dropout = first_relu
-
-  # second conv
-  second_filter_width = max(int(first_filter_width/2),5)
-  second_filter_height = max(int(first_filter_height/2),5)
-  second_filter_count = first_filter_count
-  second_weights = tf.Variable(
-      tf.truncated_normal(
-          [
-            second_filter_height, 
-            second_filter_width, 
-            first_filter_count,
-            second_filter_count
-          ],
-          stddev=0.01))
-  second_bias = tf.Variable(tf.zeros([second_filter_count]))
-  second_conv = tf.nn.conv2d(first_dropout, second_weights, [1, stride, stride, 1],
-                            'SAME') + second_bias
-  second_relu = tf.nn.relu(second_conv)
-  if is_training:
-    second_dropout = tf.nn.dropout(second_relu, dropout_prob)
-  else:
-    second_dropout = second_relu
-
-  # third conv  
-  third_filter_width = max(int(first_filter_width/3),3)
-  third_filter_height = max(int(first_filter_height/3),3)
-  third_filter_count = first_filter_count
-  third_weights = tf.Variable(
-      tf.truncated_normal(
-          [
-            third_filter_height, 
-            third_filter_height, 
-            second_filter_count,
-            third_filter_count
-          ],
-          stddev=0.01))
-  third_bias = tf.Variable(tf.zeros([second_filter_count]))
-  third_conv = tf.nn.conv2d(second_dropout, third_weights, [1, stride, stride, 1],
-                            'SAME') + third_bias
-  third_relu = tf.nn.relu(second_conv)
-  if is_training:
-    third_dropout = tf.nn.dropout(third_relu, dropout_prob)
-  else:
-    third_dropout = third_relu
-
-  # pooling
-  if model_settings['pooling'] == 'max':
-    pooling = tf.nn.max_pool(third_dropout, [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
-  elif model_settings['pooling'] == 'avg':
-    pooling = tf.nn.avg_pool(third_dropout, [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
-
-  pooling_shape = pooling.get_shape()
-  pooling_output_width = pooling_shape[2]
-  pooling_output_height = pooling_shape[1]
-  pooling_element_count = int(
-      pooling_output_width * pooling_output_height * third_filter_count)
-  flattened_pooling = tf.reshape(pooling,[-1, pooling_element_count])
-
-  # first full-connected layer
-  first_fc_weights = tf.Variable(
-      tf.truncated_normal(
-          [pooling_element_count, hidden_units], stddev=0.01), name='weights')
-  first_fc_bias = tf.Variable(tf.zeros([hidden_units]), name='biases')
-  final_fc = tf.nn.relu(tf.matmul(flattened_pooling, first_fc_weights) + first_fc_bias)
-
-  # regression 
-  final_fc_weights = tf.Variable(
-      tf.truncated_normal(
-          [hidden_units, 1], stddev=0.01), name='weights')
-  final_fc_bias = tf.Variable(tf.zeros([1]), name='biases')
-  estimator = tf.matmul(final_fc, final_fc_weights) + final_fc_bias
-
-  return estimator, dropout_prob if is_training else estimator
-
 
 """Builds a standard convolutional model.
 

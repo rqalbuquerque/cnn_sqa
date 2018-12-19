@@ -45,12 +45,12 @@ def save_wav_file(filename, wav_data, sample_rate):
     wav_encoder = audio_ops.encode_wav(wav_data_placeholder,sample_rate_placeholder)
     wav_saver = io_ops.write_file(wav_filename_placeholder, wav_encoder)
     sess.run(
-        wav_saver,
-        feed_dict={
-            wav_filename_placeholder: filename,
-            sample_rate_placeholder: sample_rate,
-            wav_data_placeholder: np.reshape(wav_data, (-1, 1))
-        })
+      wav_saver,
+      feed_dict={
+          wav_filename_placeholder: filename,
+          sample_rate_placeholder: sample_rate,
+          wav_data_placeholder: np.reshape(wav_data, (-1, 1))
+      })
 
 def save_spectrogram_mat(inputdir, outputdir):
   if os.path.exists(inputdir):
@@ -68,25 +68,9 @@ def save_spectrogram_mat(inputdir, outputdir):
         adict['spectrogram'] = np.squeeze(spec,0)
         sio.savemat(outputdir + "/" + name + ".mat", adict)
 
-def save_spectrogram_images(inputdir, outputdir):
-  if os.path.exists(inputdir):
-    if not os.path.exists(outputdir):
-      os.makedirs(outputdir)
-
-    with tf.Session() as sess:
-      for filename in glob.glob(os.path.join(inputdir, '*.wav')):
-        print(filename)
-        name = os.path.splitext(os.path.basename(filename))[0]
-        # Run the computation graph and save the png encoded image to a file
-        wav_file, graph = spectrogram_image_graph()
-        image = sess.run(graph, feed_dict={wav_file: filename})
-
-        with open(outputdir + "/" + name + ".png", 'wb') as f:
-          f.write(image)
-
 def spectrogram_image_graph():
-  # wav_file, spectrogram = spectrogram_graph()
-  wav_file, spectrogram = spectrogram_graph_new()
+  wav_file, spectrogram = spectrogram_graph()
+  # wav_file, spectrogram = spectrogram_graph_new()
 
   # Custom brightness
   mul = tf.multiply(spectrogram, 100)
@@ -170,3 +154,19 @@ def spectrogram_graph_new():
   #   log_mel_spectrograms)[..., :40]
 
   return wav_file, log_mel_spectrograms
+
+def save_spectrogram_images(inputdir, outputdir):
+  if os.path.exists(inputdir):
+    if not os.path.exists(outputdir):
+      os.makedirs(outputdir)
+
+    with tf.Session() as sess:
+      for filename in glob.glob(os.path.join(inputdir, '*.wav')):
+        print(filename)
+        name = os.path.splitext(os.path.basename(filename))[0]
+        # Run the computation graph and save the png encoded image to a file
+        wav_file, graph = spectrogram_image_graph()
+        image = sess.run(graph, feed_dict={wav_file: filename})
+
+        with open(outputdir + "/" + name + ".png", 'wb') as f:
+          f.write(image)
