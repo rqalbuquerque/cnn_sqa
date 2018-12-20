@@ -316,11 +316,11 @@ def create_conv2_model(fingerprint_input, model_settings):
                        phase_train)
 
   # pooling
-  pooling = x_pooling(conv_3, 
-                       model_settings['pooling'], 
-                       [1, 2, 2, 1], 
-                       [1, 2, 2, 1], 
-                       'SAME')
+  # pooling = x_pooling(conv_3, 
+  #                      model_settings['pooling'], 
+  #                      [1, 2, 2, 1], 
+  #                      [1, 2, 2, 1], 
+  #                      'SAME')
 
   # flattened pooling
   [_, output_height, output_width, output_depth] = conv_3.get_shape()
