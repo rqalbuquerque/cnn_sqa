@@ -211,16 +211,16 @@ class AudioProcessor(object):
 
   """
   def load_wav(self, filename, lib):
-    if lib == 'tensorflow':
-      return self.load_by_tensorflow(filename)
-    elif lib == 'librosa':
+    if lib == 'librosa':
       return self.load_by_librosa(filename)
+    elif lib == 'tensorflow':
+      return self.load_by_tensorflow(filename)
 
   def feature_extraction(self, data, lib):
-    if lib == 'tensorflow':
-      return self.featureby_tensorflow(data)
-    elif lib == 'librosa':
+    if lib == 'librosa':
       return self.feature_by_librosa(data)
+    elif lib == 'tensorflow':
+      return self.featureby_tensorflow(data)
 
   """Gather samples from the data set, applying transformations as needed.
 

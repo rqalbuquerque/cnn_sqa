@@ -79,8 +79,7 @@ def main(argv):
       is_training=True)
 
   # Define loss and optimizer
-  ground_truth_input = tf.placeholder(
-      tf.float32, [None, 1], name='groundtruth_input')
+  ground_truth_input = tf.placeholder(tf.float32, [None, 1], name='groundtruth_input')
 
   # Optionally we can add runtime checks to spot when NaNs or other symptoms of
   # numerical errors start occurring during training.

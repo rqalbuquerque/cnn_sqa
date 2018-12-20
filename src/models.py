@@ -284,7 +284,7 @@ def create_conv2_model(fingerprint_input, model_settings):
   dct_coefficient_count = model_settings['dct_coefficient_count']
   spectrogram_length = model_settings['spectrogram_length']
   fingerprint = tf.reshape(fingerprint_input,
-                  [-1, spectrogram_length, dct_coefficient_count, 1])
+                  [-1, dct_coefficient_count, spectrogram_length, 1])
   
   phase_train = tf.placeholder(tf.bool, name='phase_train')
 
