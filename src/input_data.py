@@ -242,7 +242,7 @@ class AudioProcessor(object):
     one-hot form.
   """
   # Pick one of the partitions to choose samples from.
-  def get_data(self, qty, offset, model_settings, mode, sess):
+  def get_data_old(self, qty, offset, model_settings, mode, sess):
     candidates, total = self.data_index[mode], self.set_size(mode)
     sample_count = total if qty < 1 else max(1, min(qty, total - offset))
     
@@ -276,3 +276,26 @@ class AudioProcessor(object):
 
     return data, scores
 
+  def get_data(self, qty, offset, model_settings, mode, sess):
+    candidates, total = self.data_index[mode], self.set_size(mode)
+    sample_count = total if qty < 1 else max(1, min(qty, total - offset))
+    
+    # Data and scores will be populated and returned.
+    data = np.zeros((sample_count, model_settings['fingerprint_size']))
+    scores = np.zeros((sample_count, 1))
+
+    # Use the processing graph created earlier to repeatedly to generate the
+    # final output sample data we'll use in training.
+    for i in xrange(offset, offset + sample_count):
+      # Pick which audio sample to use.
+      index = np.random.randint(total) if (mode == 'training') else i
+      sample = candidates[index]
+
+      # Run the graph to produce the original waveform.
+      waveform, sr = self.load_wav(sample['file'], model_settings['input_processing_lib'])
+
+      # Run the graph to produce the output feature.
+      data[i - offset, :] = self.feature_extraction(waveform, model_settings['input_processing_lib'])
+      scores[i - offset] = sample['score']
+
+    return data, scores
