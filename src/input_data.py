@@ -170,13 +170,13 @@ class AudioProcessor(object):
           dct_coefficient_count=model_settings['dct_coefficient_count'])
     return feature
 
-  def load_by_tensorflow(filename):
+  def load_by_tensorflow(self, filename, sess):
     input_dict = {
         self.wav_filename_placeholder: filename
     }
     return (sess.run(self.waveforme, feed_dict=input_dict).flatten(), 0)
 
-  def featureby_tensorflow(data):
+  def feature_by_tensorflow(self, data, sess):
     input_dict = {
       self.waveforme_placeholder: data
     } 
@@ -197,30 +197,11 @@ class AudioProcessor(object):
     self.n_fft = model_settings['window_size_samples'] 
     self.n_mfcc = model_settings['dct_coefficient_count']
 
-  def load_by_librosa(self, filename):
-    return librosa.load(filename, sr=self.sr, duration=self.duration)
-
   def feature_by_librosa(self, data):
     if self.feature == "mfcc":
       return librosa.feature.mfcc(
         y=data, sr=self.sr, hop_length=self.hop_length, 
         n_fft=self.n_fft, n_mfcc=self.n_mfcc)[:, 2:-2].flatten()
-
-
-  """Redirects load and feature extraction.
-
-  """
-  def load_wav(self, filename, lib):
-    if lib == 'librosa':
-      return self.load_by_librosa(filename)
-    elif lib == 'tensorflow':
-      return self.load_by_tensorflow(filename)
-
-  def feature_extraction(self, data, lib):
-    if lib == 'librosa':
-      return self.feature_by_librosa(data)
-    elif lib == 'tensorflow':
-      return self.featureby_tensorflow(data)
 
   """Gather samples from the data set, applying transformations as needed.
 
@@ -242,7 +223,7 @@ class AudioProcessor(object):
     one-hot form.
   """
   # Pick one of the partitions to choose samples from.
-  def get_data_old(self, qty, offset, model_settings, mode, sess):
+  def get_data_by_tensorflow(self, qty, offset, model_settings, mode, sess):
     candidates, total = self.data_index[mode], self.set_size(mode)
     sample_count = total if qty < 1 else max(1, min(qty, total - offset))
     
@@ -260,10 +241,13 @@ class AudioProcessor(object):
       sample_index = np.random.randint(total) if (mode == 'training') else i
       original_sample = candidates[sample_index]
 
-      # Run the graph to produce the original waveform.
-      original_waveform, sr = self.load_wav(original_sample['file'], model_settings['input_processing_lib'])
+      # load waveform
+      input_dict = {
+        self.wav_filename_placeholder: original_sample['file']
+      }
+      original_waveform = sess.run(self.waveforme, feed_dict=input_dict)
       original_score = original_sample['score']
-
+    
       # Generates data augmentation variations
       variations = (original_waveform,)
       for j in xrange(0,variations_count-1):
@@ -271,31 +255,51 @@ class AudioProcessor(object):
 
       # Run the graph to produce the output feature.
       for j in xrange(0,variations_count):
-        data[i + j - offset, :] = self.feature_extraction(variations[j], model_settings['input_processing_lib'])
+        input_dict = {
+          self.waveforme_placeholder: variations[j]
+        } 
+        
+        data[i + j - offset, :] = sess.run(self.feature, feed_dict=input_dict).flatten()
         scores[i + j - offset] = original_score
 
     return data, scores
 
-  def get_data(self, qty, offset, model_settings, mode, sess):
+  def get_data_by_librosa(self, qty, offset, model_settings, mode):
     candidates, total = self.data_index[mode], self.set_size(mode)
     sample_count = total if qty < 1 else max(1, min(qty, total - offset))
     
+    # Data augmentation algorithms
+    variations_count = (len(model_settings['data_aug_algorithms']) + 1) if (mode == 'training') else 1
+
     # Data and scores will be populated and returned.
-    data = np.zeros((sample_count, model_settings['fingerprint_size']))
-    scores = np.zeros((sample_count, 1))
+    data = np.zeros((sample_count*variations_count, model_settings['fingerprint_size']))
+    scores = np.zeros((sample_count*variations_count, 1))
 
     # Use the processing graph created earlier to repeatedly to generate the
     # final output sample data we'll use in training.
     for i in xrange(offset, offset + sample_count):
       # Pick which audio sample to use.
-      index = np.random.randint(total) if (mode == 'training') else i
-      sample = candidates[index]
+      sample_index = np.random.randint(total) if (mode == 'training') else i
+      original_sample = candidates[sample_index]
 
-      # Run the graph to produce the original waveform.
-      waveform, sr = self.load_wav(sample['file'], model_settings['input_processing_lib'])
+      # load waveform
+      original_waveform, _ = librosa.load(original_sample['file'], sr=self.sr, duration=self.duration)
+      original_score = original_sample['score']
+    
+      # Generates data augmentation variations
+      variations = (original_waveform,)
+      for j in xrange(0,variations_count-1):
+        variations += (data_augmentation.apply(original_waveform, model_settings['data_aug_algorithms'][j]),)
 
       # Run the graph to produce the output feature.
-      data[i - offset, :] = self.feature_extraction(waveform, model_settings['input_processing_lib'])
-      scores[i - offset] = sample['score']
+      for j in xrange(0,variations_count):
+        data[i + j - offset, :] = self.feature_by_librosa(variations[j])
+        scores[i + j - offset] = original_score
 
     return data, scores
+
+  def get_data(self, qty, offset, model_settings, mode, sess):
+    if model_settings['input_processing_lib'] == 'librosa':
+      return self.get_data_by_librosa(qty, offset, model_settings, mode)
+    elif model_settings['input_processing_lib'] == 'tensorflow':
+      return self.get_data_by_tensorflow(qty, offset, model_settings, mode, sess)

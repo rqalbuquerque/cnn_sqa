@@ -33,9 +33,9 @@ def random_circular_shift(data):
 
 def apply(data, mode):
   if mode == 'flip':
-    return data_augmentation.flip(data)
+    return flip(data)
   elif mode == 'random_circular_shift':
-    return data_augmentation.random_circular_shift(data)
+    return random_circular_shift(data)
 
 def load_and_apply(input_dir, output_dir, ext):
 	# Get all subfolders
