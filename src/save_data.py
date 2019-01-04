@@ -7,8 +7,11 @@ from __future__ import print_function
 
 import os.path
 import glob
+import librosa
+import librosa.display
+import matplotlib.pyplot as plt
 import numpy as np
-import scipy.io as sio
+import scipy
 
 import tensorflow as tf
 from tensorflow.contrib.framework.python.ops import audio_ops
@@ -66,7 +69,7 @@ def save_spectrogram_mat(inputdir, outputdir):
         spec = sess.run(graph, feed_dict={wav_file: filename})
         adict = {}
         adict['spectrogram'] = np.squeeze(spec,0)
-        sio.savemat(outputdir + "/" + name + ".mat", adict)
+        scipy.io.savemat(outputdir + "/" + name + ".mat", adict)
 
 def spectrogram_image_graph():
   wav_file, spectrogram = spectrogram_graph()
@@ -155,18 +158,45 @@ def spectrogram_graph_new():
 
   return wav_file, log_mel_spectrograms
 
-def save_spectrogram_images(inputdir, outputdir):
+def feature_by_librosa(data, feature, sr):
+  feat = np.abs(librosa.stft(data, n_fft=1024, hop_length=128, window=scipy.signal.windows.hann))
+  feat = feat[0:257,:]
+
+  if feature == 'amplitude_to_db':
+    feat = librosa.amplitude_to_db(feat,ref=np.max)
+  elif feature == 'mel_spectrogram':
+    feat = librosa.feature.melspectrogram(y=data, sr=sr, n_mels=128, fmax=8000)
+  if feature == 'mfcc-1':
+    feat = librosa.feature.mfcc(y=data, sr=sr, hop_length=128, n_fft=1024, n_mfcc=40)
+  elif feature == 'mfcc-2':
+    feat = librosa.feature.mfcc(S=librosa.power_to_db(feat))
+  
+  return feat 
+
+def save_feature_images(inputdir, outputdir, feat):
   if os.path.exists(inputdir):
     if not os.path.exists(outputdir):
       os.makedirs(outputdir)
 
     with tf.Session() as sess:
       for filename in glob.glob(os.path.join(inputdir, '*.wav')):
+        basename = os.path.basename(filename)
+        name = os.path.splitext(basename)[0]
         print(filename)
-        name = os.path.splitext(os.path.basename(filename))[0]
-        # Run the computation graph and save the png encoded image to a file
-        wav_file, graph = spectrogram_image_graph()
-        image = sess.run(graph, feed_dict={wav_file: filename})
 
-        with open(outputdir + "/" + name + ".png", 'wb') as f:
-          f.write(image)
+        # Extract feature by tensorflow and save the png encoded image
+        # wav_file, graph = spectrogram_image_graph()
+        # image = sess.run(graph, feed_dict={wav_file: filename})
+        # with open(outputdir + "/" + name + ".png", 'wb') as f:
+          # f.write(image)  
+
+        # Extract feature by librosa and save the png encoded image
+        data, sr = librosa.load(filename, sr=16000)
+        feature = feature_by_librosa(data, feat, sr)
+
+        plt.figure()
+        librosa.display.specshow(feature, x_axis='time')
+        plt.colorbar()
+        plt.title(feat)
+        plt.tight_layout()
+        plt.savefig(outputdir + "/" + name + ".png")

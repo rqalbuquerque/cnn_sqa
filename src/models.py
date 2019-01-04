@@ -40,14 +40,9 @@ def prepare_model_settings(input_processing_lib,
   desired_samples = int(sample_rate * clip_duration_ms / 1000.0)
   window_size_samples = int(sample_rate * window_size_ms / 1000.0)
   window_stride_samples = int(sample_rate * window_stride_ms / 1000.0)
-  length_minus_window = (desired_samples - window_size_samples)
-  
-  if length_minus_window < 0:
-    spectrogram_length = 0
-  else:
-    spectrogram_length = 1 + int(length_minus_window / window_stride_samples)
-
+  spectrogram_length = 1 + int(desired_samples / window_stride_samples)
   fingerprint_size = dct_coefficient_count * spectrogram_length
+  
   return {
       'desired_samples': desired_samples,
       'window_size_samples': window_size_samples,

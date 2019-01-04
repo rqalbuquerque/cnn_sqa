@@ -58,7 +58,7 @@ class AudioProcessor(object):
 
   def __init__(self, data_dir, validation_percentage, testing_percentage, model_settings):
     self.prepare_data_index(data_dir, validation_percentage, testing_percentage)
-
+    
     if model_settings['input_processing_lib'] == 'tensorflow':
       self.prepare_processing_input_graph(model_settings)
       self.prepare_processing_feature_graph(model_settings)
@@ -170,19 +170,6 @@ class AudioProcessor(object):
           dct_coefficient_count=model_settings['dct_coefficient_count'])
     return feature
 
-  def load_by_tensorflow(self, filename, sess):
-    input_dict = {
-        self.wav_filename_placeholder: filename
-    }
-    return (sess.run(self.waveforme, feed_dict=input_dict).flatten(), 0)
-
-  def feature_by_tensorflow(self, data, sess):
-    input_dict = {
-      self.waveforme_placeholder: data
-    } 
-    return sess.run(self.feature, feed_dict=input_dict).flatten()
-
-
   """Load wav and generates features using Librosa.
 
   Directly load a .wav file and generates the choosed feature
@@ -195,13 +182,25 @@ class AudioProcessor(object):
     self.feature = model_settings['feature']
     self.hop_length = model_settings['window_stride_samples'] 
     self.n_fft = model_settings['window_size_samples'] 
-    self.n_mfcc = model_settings['dct_coefficient_count']
+    self.n_coeffs = model_settings['dct_coefficient_count']
+    self.window = scipy.signal.windows.hann
+
+  def load_by_librosa(self, filename):
+    with tf.name_scope('input'):
+      data, sr = librosa.load(filename, sr=self.sr, duration=self.duration)
+      return data
 
   def feature_by_librosa(self, data):
-    if self.feature == "mfcc":
-      return librosa.feature.mfcc(
-        y=data, sr=self.sr, hop_length=self.hop_length, 
-        n_fft=self.n_fft, n_mfcc=self.n_mfcc)[:, 2:-2].flatten()
+    with tf.name_scope('feature'):
+      if self.feature == 'amplitude_to_db':
+        spec = np.abs(librosa.stft(
+          y=data, n_fft=self.n_fft, hop_length=self.hop_length, 
+          window=self.window))[0:self.n_coeffs,:]
+        return librosa.amplitude_to_db(spec, ref=np.max).flatten()
+      elif self.feature == 'mfcc':
+        return librosa.feature.mfcc(
+          y=data, sr=self.sr, hop_length=self.hop_length, 
+          n_fft=self.n_fft, n_mfcc=self.n_coeffs)[:, 2:-2].flatten()
 
   """Gather samples from the data set, applying transformations as needed.
 
@@ -283,7 +282,7 @@ class AudioProcessor(object):
       original_sample = candidates[sample_index]
 
       # load waveform
-      original_waveform, _ = librosa.load(original_sample['file'], sr=self.sr, duration=self.duration)
+      original_waveform = self.load_by_librosa(original_sample['file'])
       original_score = original_sample['score']
     
       # Generates data augmentation variations
@@ -291,7 +290,7 @@ class AudioProcessor(object):
       for j in xrange(0,variations_count-1):
         variations += (data_augmentation.apply(original_waveform, model_settings['data_aug_algorithms'][j]),)
 
-      # Run the graph to produce the output feature.
+      # Run the graph to produce the output feature
       for j in xrange(0,variations_count):
         data[i + j - offset, :] = self.feature_by_librosa(variations[j])
         scores[i + j - offset] = original_score
