@@ -192,15 +192,23 @@ class AudioProcessor(object):
 
   def feature_by_librosa(self, data):
     with tf.name_scope('feature'):
-      if self.feature == 'amplitude_to_db':
+      if self.feature == 'amplitude':
         spec = np.abs(librosa.stft(
-          y=data, n_fft=self.n_fft, hop_length=self.hop_length, 
-          window=self.window))[0:self.n_coeffs,:]
-        return librosa.amplitude_to_db(spec, ref=np.max).flatten()
+          y=data, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window))
+        return spec[0:self.n_coeffs,:].flatten()
+      elif self.feature == 'amplitude_to_db':
+        spec = np.abs(librosa.stft(
+          y=data, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window))
+        spec = librosa.amplitude_to_db(spec[0:self.n_coeffs,:], ref=np.max)
+        return spec.flatten()
       elif self.feature == 'mfcc':
-        return librosa.feature.mfcc(
-          y=data, sr=self.sr, hop_length=self.hop_length, 
-          n_fft=self.n_fft, n_mfcc=self.n_coeffs)[:, 2:-2].flatten()
+        spec = librosa.feature.mfcc(
+          y=data, sr=self.sr, hop_length=self.hop_length, n_fft=self.n_fft, n_mfcc=self.n_coeffs)
+        return spec[:, 2:-2].flatten()
+      elif self.feature == 'spectral_parametrization':
+        spec = librosa.stft(
+          y=data, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window)
+        return spec[0:self.n_coeffs,:].flatten()
 
   """Gather samples from the data set, applying transformations as needed.
 
