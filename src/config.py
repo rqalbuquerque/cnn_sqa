@@ -19,12 +19,26 @@ def set_flags(configs={}):
   parser.add_argument(
       '--summaries_dir',
       type=str,
-      default=configs.get('summaries_dir', '../logs/summary'),
+      default=configs.get('summaries_dir', '../logs_test/summary'),
       help='Where to save summary logs for TensorBoard.')
   parser.add_argument(
       '--train_dir',
       type=str,
-      default=configs.get('train_dir', '../logs/event'),
+      default=configs.get('train_dir', '../logs_test/event'),
+      help='Directory to write event logs and checkpoint.')
+
+# config summary
+  parser.add_argument(
+      '--enable_hist_summary',
+      type=str,
+      default=configs.get('enable_hist_summary', False),
+      help='Directory to write event logs and checkpoint.')
+
+# config profile
+  parser.add_argument(
+      '--enable_profile',
+      type=str,
+      default=configs.get('enable_profile', False),
       help='Directory to write event logs and checkpoint.')
 
 # config Learning
@@ -75,7 +89,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--data_aug_algorithms',
       type=list,
-      default=configs.get('data_aug_algorithms', []),
+      default=configs.get('data_aug_algorithms', ['random_circular_shift']),
       help='Expected sample rate of the wavs')
 
 # config Spectrogram
@@ -92,12 +106,12 @@ def set_flags(configs={}):
   parser.add_argument(
       '--feature',
       type=str,
-      default=configs.get('feature', 'mfcc'),
+      default=configs.get('feature', 'amplitude_to_db'),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--dct_coefficient_count',
       type=int,
-      default=configs.get('dct_coefficient_count', 40),
+      default=configs.get('dct_coefficient_count', 129),
       help='How many bins to use for the MFCC fingerprint')
 
 # config CNN
@@ -114,17 +128,17 @@ def set_flags(configs={}):
   parser.add_argument(
       '--filter_width',
       type=list,
-      default=configs.get('filter_width', [1,2,3]),
+      default=configs.get('filter_width', [1,3,5]),
       help='What filter width to use')
   parser.add_argument(
       '--filter_height',
       type=list,
-      default=configs.get('filter_height', [1,2,3]),
+      default=configs.get('filter_height', [1,3,5]),
       help='What filter height to use')
   parser.add_argument(
       '--filter_count',
       type=list,
-      default=configs.get('filter_count', [1,2,3]),
+      default=configs.get('filter_count', [1,3,5]),
       help='What filter count to use')
   parser.add_argument(
       '--stride',
@@ -146,7 +160,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--hidden_units',
       type=str,
-      default=configs.get('hidden_units', [10]),
+      default=configs.get('hidden_units', [50]),
       help='Number of units in hidden layers.')
 
   parser.add_argument(

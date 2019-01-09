@@ -144,8 +144,8 @@ def main(argv):
   tf.logging.info('"***************** Training *****************')
   tf.logging.info('Training from step: %d ', start_step)
 
-  options = []
-  run_metadata = []
+  options = None
+  run_metadata = None
   if FLAGS.enable_profile:
     options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
     run_metadata = tf.RunMetadata()
