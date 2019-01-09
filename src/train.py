@@ -11,14 +11,15 @@ import os.path
 import re
 
 import numpy as np
-from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
+from tensorflow.python.client import timeline
+from six.moves import xrange  # pylint: disable=redefined-builtin
 
 import input_data
 import models
 import config
 
-def create_log_dir(logdir):
+def create_log_path(logdir):
   dirs = [x[0] for x in os.walk(logdir)]
   if len(dirs) > 1:
     last = sorted(dirs[1:])[-1]
@@ -26,6 +27,10 @@ def create_log_dir(logdir):
     return logdir + '/run' + str(num)
   else:
     return logdir + '/run1'
+
+def create_dir(directory): 
+  if not os.path.exists(directory):
+    os.makedirs(directory)
 
 def main(argv):
   # Get flags
@@ -40,6 +45,7 @@ def main(argv):
   # Begin by making sure we have the training data we need.
   model_settings = models.prepare_model_settings(
       FLAGS.input_processing_lib,
+      FLAGS.enable_hist_summary,
       FLAGS.sample_rate, 
       FLAGS.clip_duration_ms, 
       FLAGS.window_size_ms,
@@ -84,9 +90,9 @@ def main(argv):
   # Optionally we can add runtime checks to spot when NaNs or other symptoms of
   # numerical errors start occurring during training.
   control_dependencies = []
-  # if FLAGS.check_nans:
-  #   checks = tf.add_check_numerics_ops()
-  #   control_dependencies = [checks]
+  if FLAGS.check_nans:
+    checks = tf.add_check_numerics_ops()
+    control_dependencies = [checks]
 
   # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('loss'):
@@ -107,10 +113,15 @@ def main(argv):
 
   # Merge all the summaries and write them out to /tmp/retrain_logs (by default)
   merged_summaries = tf.summary.merge_all()
-  log_dir = create_log_dir(FLAGS.summaries_dir)
+  log_dir = create_log_path(FLAGS.summaries_dir)
+
   train_writer = tf.summary.FileWriter(log_dir + '/train', sess.graph)
   validation_writer = tf.summary.FileWriter(log_dir + '/validation')
   test_writer = tf.summary.FileWriter(log_dir + '/test')
+
+  if FLAGS.enable_profile:
+    profile_dir = FLAGS.summaries_dir + '/profile'
+    create_dir(profile_dir)
 
   tf.global_variables_initializer().run()
 
@@ -132,6 +143,12 @@ def main(argv):
   
   tf.logging.info('"***************** Training *****************')
   tf.logging.info('Training from step: %d ', start_step)
+
+  options = []
+  run_metadata = []
+  if FLAGS.enable_profile:
+    options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+    run_metadata = tf.RunMetadata()
 
   training_steps_max = np.sum(training_steps_list)
   for training_step in xrange(start_step, training_steps_max + 1):
@@ -160,12 +177,19 @@ def main(argv):
             ground_truth_input: train_ground_truth,
             learning_rate_input: learning_rate_value,
             phase_train: True
-        })
+        },
+        options=options,
+        run_metadata=run_metadata)
 
     train_writer.add_summary(train_summary, training_step)
     tf.logging.info('step #%d: rate %f, rmse %f' %
                     (training_step, learning_rate_value, train_rmse))
 
+    if FLAGS.enable_profile:
+      fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+      chrome_trace = fetched_timeline.generate_chrome_trace_format()
+      with open(profile_dir + '/' + 'timeline_training_step_%d.json' % training_step, 'w') as f:
+        f.write(chrome_trace)
 
     if (training_step % FLAGS.eval_step_interval) == 0 or (training_step == training_steps_max):
       tf.logging.info('***************** Validation *****************')

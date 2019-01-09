@@ -21,6 +21,7 @@ Returns:
   Dictionary containing common settings.
 """
 def prepare_model_settings(input_processing_lib,
+                           enable_hist_summary,
                            sample_rate, 
                            clip_duration_ms,
                            window_size_ms, 
@@ -49,6 +50,7 @@ def prepare_model_settings(input_processing_lib,
       'window_stride_samples': window_stride_samples,
       'fingerprint_size': fingerprint_size,
       'input_processing_lib': input_processing_lib,
+      'enable_hist_summary': enable_hist_summary,
       'sample_rate': sample_rate,
       'spectrogram_length': spectrogram_length,
       'data_aug_algorithms': data_aug_algorithms,
@@ -136,12 +138,13 @@ Return:
     feature maps volume tensor
 """
 def conv_layer(input_tensor, 
-                   filter_height, 
-                   filter_width, 
-                   filters_depth, 
-                   stride,
-                   output_maps_count,
-                   phase_train):
+               filter_height, 
+               filter_width, 
+               filters_depth, 
+               stride,
+               output_maps_count,
+               phase_train,
+               enable_hist_summary):
   with tf.name_scope('conv'):
     weights = tf.Variable(
       tf.truncated_normal(
@@ -160,11 +163,10 @@ def conv_layer(input_tensor,
     norm_conv = batch_normalization(conv, output_maps_count, phase_train)
     relu = activation(norm_conv, "relu")
 
-    #tf.summary.image('weights', weights, 3)
-
-    tf.summary.histogram('weights', weights)
-    tf.summary.histogram('bias', bias)
-    tf.summary.histogram('relu', relu)
+    if enable_hist_summary:
+      tf.summary.histogram('weights', weights)
+      tf.summary.histogram('bias', bias)
+      tf.summary.histogram('relu', relu)
 
     return relu
 
@@ -177,7 +179,10 @@ Args:
 Return:
     output matrix
 """
-def fully_connected(input_tensor, input_units, hidden_units):
+def fully_connected(input_tensor, 
+                    input_units, 
+                    hidden_units, 
+                    enable_hist_summary):
   with tf.name_scope('fc'):
     weights = tf.Variable(
       tf.truncated_normal(
@@ -190,8 +195,9 @@ def fully_connected(input_tensor, input_units, hidden_units):
       name='weights')
     bias = tf.Variable(tf.zeros([hidden_units]), name='biases')
 
-    tf.summary.histogram('weights', weights)
-    tf.summary.histogram('bias', bias)
+    if enable_hist_summary:
+      tf.summary.histogram('weights', weights)
+      tf.summary.histogram('bias', bias)
 
     return tf.math.add(tf.matmul(input_tensor, weights), bias, name='sum')
 
@@ -290,7 +296,8 @@ def create_conv2_model(fingerprint_input, model_settings):
                        int(fingerprint.shape[-1]), 
                        model_settings['stride'][0],
                        model_settings['filter_count'][0],
-                       phase_train)
+                       phase_train,
+                       model_settings['enable_hist_summary'])
 
   # conv layer 2
   conv_2 = conv_layer(conv_1, 
@@ -299,7 +306,8 @@ def create_conv2_model(fingerprint_input, model_settings):
                        int(conv_1.shape[-1]), 
                        model_settings['stride'][1],
                        model_settings['filter_count'][1],
-                       phase_train)
+                       phase_train,
+                       model_settings['enable_hist_summary'])
 
   # conv layer 3
   conv_3 = conv_layer(conv_2, 
@@ -308,7 +316,8 @@ def create_conv2_model(fingerprint_input, model_settings):
                        int(conv_2.shape[-1]), 
                        model_settings['stride'][2],
                        model_settings['filter_count'][2],
-                       phase_train)
+                       phase_train,
+                       model_settings['enable_hist_summary'])
 
   # pooling
   # pooling = x_pooling(conv_3, 
@@ -323,11 +332,11 @@ def create_conv2_model(fingerprint_input, model_settings):
   flattened = tf.reshape(conv_3, [-1, element_count])
 
   # fc layer 1
-  fc_1 = fully_connected(flattened, element_count, model_settings['hidden_units'][0])
+  fc_1 = fully_connected(flattened, element_count, model_settings['hidden_units'][0], model_settings['enable_hist_summary'])
   final_fc_relu = activation(fc_1, "relu")
 
   # regression 
-  estimator = fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1)
+  estimator = fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1, model_settings['enable_hist_summary'])
   
   # log
   tf.summary.image('input', fingerprint, 1)
