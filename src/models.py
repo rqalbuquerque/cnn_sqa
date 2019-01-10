@@ -163,6 +163,8 @@ def conv_layer(input_tensor,
     norm_conv = batch_normalization(conv, output_maps_count, phase_train)
     relu = activation(norm_conv, "relu")
 
+    # tf.summary.image('cnn_weights', tf.transpose(weights,[2,1,0,3]), 1)
+
     if enable_hist_summary:
       tf.summary.histogram('weights', weights)
       tf.summary.histogram('bias', bias)
