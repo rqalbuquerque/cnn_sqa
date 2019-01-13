@@ -159,13 +159,23 @@ def spectrogram_graph_new():
   return wav_file, log_mel_spectrograms
 
 def feature_by_librosa(data, feature, sr):
-  feat = np.abs(librosa.stft(data, n_fft=1024, hop_length=128, window=scipy.signal.windows.hann))
-  feat = feat[0:257,:]
+  feat = np.abs(librosa.stft(data, n_fft=512, hop_length=128, window=scipy.signal.windows.hann))
+  feat = feat[0:129,:]
 
   if feature == 'amplitude_to_db':
     feat = librosa.amplitude_to_db(feat,ref=np.max)
-  elif feature == 'mel_spectrogram':
-    feat = librosa.feature.melspectrogram(y=data, sr=sr, n_mels=128, fmax=8000)
+  elif feature == 'mel_spectrogram_power_1':
+    feat = librosa.power_to_db(
+      librosa.feature.melspectrogram(
+        y=data, sr=sr, n_fft=512, hop_length=128, n_mels=128, fmax=8000, power=1), ref=np.max)
+        # y=data, sr=sr, n_fft=1024, hop_length=128, n_mels=256, fmax=8000, power=1), ref=np.max)
+    # feat = feat[0:192,:]
+  elif feature == 'mel_spectrogram_power_2':
+    feat = librosa.power_to_db(
+      librosa.feature.melspectrogram(
+        y=data, sr=sr, n_fft=512, hop_length=128, n_mels=128, fmax=8000, power=2), ref=np.max)
+        # y=data, sr=sr, n_fft=1024, hop_length=128, n_mels=256, fmax=8000, power=2), ref=np.max)
+    # feat = feat[0:192,:]
   if feature == 'mfcc-1':
     feat = librosa.feature.mfcc(y=data, sr=sr, hop_length=128, n_fft=1024, n_mfcc=40)
   elif feature == 'mfcc-2':
@@ -200,3 +210,4 @@ def save_feature_images(inputdir, outputdir, feat):
         plt.title(feat)
         plt.tight_layout()
         plt.savefig(outputdir + "/" + name + ".png")
+        plt.close()

@@ -41,7 +41,7 @@ def prepare_model_settings(input_processing_lib,
   desired_samples = int(sample_rate * clip_duration_ms / 1000.0)
   window_size_samples = int(sample_rate * window_size_ms / 1000.0)
   window_stride_samples = int(sample_rate * window_stride_ms / 1000.0)
-  spectrogram_length = 1 + int(desired_samples / window_stride_samples)
+  spectrogram_length = 1 + int((desired_samples-window_size_samples) / window_stride_samples)
   fingerprint_size = dct_coefficient_count * spectrogram_length
   
   return {
@@ -239,7 +239,7 @@ def create_model(fingerprint_input,
                  runtime_settings=None):
 
   if model_architecture == 'conv':
-    return create_conv2_model(fingerprint_input, model_settings)
+    return create_conv_model(fingerprint_input, model_settings)
   else:
     raise Exception('model_architecture argument "' + model_architecture +
                     '" not recognized, should be "conv"')
@@ -283,7 +283,7 @@ Returns:
   TensorFlow node outputting logits results, and optionally a dropout
   placeholder.
 """
-def create_conv2_model(fingerprint_input, model_settings):
+def create_conv_model(fingerprint_input, model_settings):
   dct_coefficient_count = model_settings['dct_coefficient_count']
   spectrogram_length = model_settings['spectrogram_length']
   fingerprint = tf.reshape(fingerprint_input,
