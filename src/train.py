@@ -6,9 +6,12 @@ from __future__ import division
 from __future__ import print_function
 
 from tabulate import tabulate
+from collections import Counter
 import time
 import os.path
 import re
+import csv
+
 
 import numpy as np
 import tensorflow as tf
@@ -31,6 +34,11 @@ def create_log_path(logdir):
 def create_dir(directory): 
   if not os.path.exists(directory):
     os.makedirs(directory)
+
+def save_flags(flags, out_dir):
+    with open(out_dir + '/' + 'flags.txt', "w") as f:
+        wr = csv.writer(f,delimiter=":")
+        wr.writerows(Counter(flags.__dict__).items())
 
 def main(argv):
   # Get flags
@@ -129,6 +137,8 @@ def main(argv):
   if FLAGS.start_checkpoint:
     models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
     start_step = global_step.eval(session=sess)
+
+  save_flags(FLAGS, log_dir)
 
   # Save graph.pbtxt.
   #tf.train.write_graph(sess.graph_def, FLAGS.train_dir, FLAGS.model_architecture + '.pbtxt')
