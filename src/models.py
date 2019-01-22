@@ -34,6 +34,7 @@ def prepare_model_settings(input_processing_lib,
                            filter_height,
                            filter_count,
                            stride,
+                           apply_batch_norm,
                            pooling,
                            fc_layers,
                            hidden_units):
@@ -62,6 +63,7 @@ def prepare_model_settings(input_processing_lib,
       'filter_count': filter_count,
       'stride': stride,
       'pooling': pooling,
+      'apply_batch_norm': apply_batch_norm,
       'fc_layers': fc_layers,
       'hidden_units': hidden_units
   }
@@ -77,7 +79,7 @@ def load_variables_from_checkpoint(sess, start_checkpoint):
   saver.restore(sess, start_checkpoint)
 
 def activation(input_tensor, mode):
-  return tf.nn.relu(input_tensor) if mode == "relu" else input_tensor
+  return tf.nn.relu(input_tensor, name="relu") if mode == "relu" else input_tensor
 
 """Utility function to add pooling to the graph.
 
@@ -92,8 +94,9 @@ Returns:
   TensorFlow node outputting pooling results.
 """
 def x_pooling(input_tensor, mode, ksize, strides, padding):
-  return tf.nn.max_pool(input_tensor, ksize, strides, padding, name="max_pool") if mode == "max" else input_tensor
-  return tf.nn.avg_pool(input_tensor, ksize, strides, padding, name="avg_pool") if mode == "avg" else input_tensor
+  with tf.name_scope('pooling'):
+    return tf.nn.max_pool(input_tensor, ksize, strides, padding, name="max_pool") if mode == "max" else input_tensor
+    return tf.nn.avg_pool(input_tensor, ksize, strides, padding, name="avg_pool") if mode == "avg" else input_tensor
 
 """
 Batch normalization on convolutional maps.
@@ -143,7 +146,6 @@ def conv_layer(input_tensor,
                filters_depth, 
                stride,
                output_maps_count,
-               phase_train,
                enable_hist_summary):
   with tf.name_scope('conv'):
     weights = tf.Variable(
@@ -158,19 +160,13 @@ def conv_layer(input_tensor,
         name='random'),
       name='weights')
     bias = tf.Variable(tf.zeros([output_maps_count]), name='biases')
-
     conv = tf.math.add(tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME'), bias, name='sum')
-    norm_conv = batch_normalization(conv, output_maps_count, phase_train)
-    relu = activation(norm_conv, "relu")
-
-    # tf.summary.image('cnn_weights', tf.transpose(weights,[2,1,0,3]), 1)
 
     if enable_hist_summary:
       tf.summary.histogram('weights', weights)
       tf.summary.histogram('bias', bias)
-      tf.summary.histogram('relu', relu)
 
-    return relu
+    return conv
 
 """
 Fully-connected layer.
@@ -196,12 +192,13 @@ def fully_connected(input_tensor,
         name='random'), 
       name='weights')
     bias = tf.Variable(tf.zeros([hidden_units]), name='biases')
+    fc = tf.math.add(tf.matmul(input_tensor, weights, name='mult'), bias, name='sum')
 
     if enable_hist_summary:
       tf.summary.histogram('weights', weights)
       tf.summary.histogram('bias', bias)
 
-    return tf.math.add(tf.matmul(input_tensor, weights), bias, name='sum')
+    return fc
 
 """Builds a model of the requested architecture compatible with the settings.
 
@@ -298,8 +295,9 @@ def create_conv_model(fingerprint_input, model_settings):
                        int(fingerprint.shape[-1]), 
                        model_settings['stride'][0],
                        model_settings['filter_count'][0],
-                       phase_train,
                        model_settings['enable_hist_summary'])
+  conv_1 = batch_normalization(conv_1, model_settings['filter_count'][0], phase_train) if model_settings['apply_batch_norm'] else conv_1
+  conv_1 = activation(conv_1, "relu")
 
   # conv layer 2
   conv_2 = conv_layer(conv_1, 
@@ -308,8 +306,9 @@ def create_conv_model(fingerprint_input, model_settings):
                        int(conv_1.shape[-1]), 
                        model_settings['stride'][1],
                        model_settings['filter_count'][1],
-                       phase_train,
                        model_settings['enable_hist_summary'])
+  conv_2 = batch_normalization(conv_2, model_settings['filter_count'][1], phase_train) if model_settings['apply_batch_norm'] else conv_2
+  conv_2 = activation(conv_2, "relu")
 
   # conv layer 3
   conv_3 = conv_layer(conv_2, 
@@ -318,20 +317,22 @@ def create_conv_model(fingerprint_input, model_settings):
                        int(conv_2.shape[-1]), 
                        model_settings['stride'][2],
                        model_settings['filter_count'][2],
-                       phase_train,
                        model_settings['enable_hist_summary'])
+  conv_3 = batch_normalization(conv_3, model_settings['filter_count'][2], phase_train) if model_settings['apply_batch_norm'] else conv_3
+  output_conv = activation(conv_3, "relu")
 
   # pooling
-  # pooling = x_pooling(conv_3, 
-  #                      model_settings['pooling'], 
-  #                      [1, 2, 2, 1], 
-  #                      [1, 2, 2, 1], 
-  #                      'SAME')
+  if model_settings['pooling']:
+    output_conv = x_pooling(output_conv, 
+                         model_settings['pooling'], 
+                         [1, 2, 2, 1], 
+                         [1, 2, 2, 1], 
+                         'SAME')
 
-  # flattened pooling
-  [_, output_height, output_width, output_depth] = conv_3.get_shape()
+  # flattened 
+  [_, output_height, output_width, output_depth] = output_conv.get_shape()
   element_count = int(output_height * output_width * output_depth)
-  flattened = tf.reshape(conv_3, [-1, element_count])
+  flattened = tf.reshape(output_conv, [-1, element_count])
 
   # fc layer 1
   fc_1 = fully_connected(flattened, element_count, model_settings['hidden_units'][0], model_settings['enable_hist_summary'])
@@ -342,5 +343,9 @@ def create_conv_model(fingerprint_input, model_settings):
   
   # log
   tf.summary.image('input', fingerprint, 1)
+  # tf.summary.image('conv_1_feat_map', conv_1, 1)
+  # tf.summary.image('conv_2_feat_map', conv_2, 1)
+  # tf.summary.image('conv_3_feat_map', conv_3, 1)
+
 
   return estimator, phase_train

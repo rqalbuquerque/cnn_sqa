@@ -8,37 +8,32 @@ from __future__ import print_function
 from tabulate import tabulate
 from collections import Counter
 import time
-import os.path
 import re
 import csv
-
+import glob
+import os
+import sys
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.client import timeline
-from six.moves import xrange  # pylint: disable=redefined-builtin
 
 import input_data
 import models
 import config
 
-def create_log_path(logdir):
-  dirs = [x[0] for x in os.walk(logdir)]
-  if len(dirs) > 1:
-    last = sorted(dirs[1:])[-1]
-    num = int(re.search(r'[0-9]+', last).group()) + 1
-    return logdir + '/run' + str(num)
+def create_log_path(log_dir):
+  dirs = os.listdir(log_dir)
+  if len(dirs) > 0:
+    indexes = [int(x.replace('run','')) for x in dirs]
+    num = sorted(indexes)[-1] + 1
+    return log_dir + '/run' + str(num)
   else:
-    return logdir + '/run1'
+    return log_dir + '/run1'
 
 def create_dir(directory): 
   if not os.path.exists(directory):
     os.makedirs(directory)
-
-def save_flags(flags, out_dir):
-    with open(out_dir + '/' + 'flags.txt', "w") as f:
-        wr = csv.writer(f,delimiter=":")
-        wr.writerows(Counter(flags.__dict__).items())
 
 def main(argv):
   # Get flags
@@ -66,6 +61,7 @@ def main(argv):
       FLAGS.filter_height,
       FLAGS.filter_count,
       FLAGS.stride,
+      FLAGS.apply_batch_norm,
       FLAGS.pooling,
       FLAGS.fc_layers,
       FLAGS.hidden_units)
@@ -125,7 +121,7 @@ def main(argv):
 
   train_writer = tf.summary.FileWriter(log_dir + '/train', sess.graph)
   validation_writer = tf.summary.FileWriter(log_dir + '/validation')
-  test_writer = tf.summary.FileWriter(log_dir + '/test')
+  weighted_validation = tf.summary.FileWriter(log_dir + '/weighted_validation')
 
   if FLAGS.enable_profile:
     profile_dir = FLAGS.summaries_dir + '/profile'
@@ -138,7 +134,7 @@ def main(argv):
     models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
     start_step = global_step.eval(session=sess)
 
-  save_flags(FLAGS, log_dir)
+  config.save_configs(FLAGS.__dict__, log_dir)
 
   # Save graph.pbtxt.
   #tf.train.write_graph(sess.graph_def, FLAGS.train_dir, FLAGS.model_architecture + '.pbtxt')
@@ -154,14 +150,14 @@ def main(argv):
   tf.logging.info('"***************** Training *****************')
   tf.logging.info('Training from step: %d ', start_step)
 
-  options = None
-  run_metadata = None
-  if FLAGS.enable_profile:
-    options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-    run_metadata = tf.RunMetadata()
+  # options = None
+  # run_metadata = None
+  # if FLAGS.enable_profile:
+  #   options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+  #   run_metadata = tf.RunMetadata()
 
   training_steps_max = np.sum(training_steps_list)
-  for training_step in xrange(start_step, training_steps_max + 1):
+  for training_step in range(start_step, training_steps_max + 1):
     # Figure out what the current learning rate is.
     training_steps_sum = 0
     for i in range(len(training_steps_list)):
@@ -187,9 +183,9 @@ def main(argv):
             ground_truth_input: train_ground_truth,
             learning_rate_input: learning_rate_value,
             phase_train: True
-        },
-        options=options,
-        run_metadata=run_metadata)
+        })
+        # options=options,
+        # run_metadata=run_metadata)
 
     train_writer.add_summary(train_summary, training_step)
     tf.logging.info('step #%d: rate %f, rmse %f' %
@@ -206,8 +202,10 @@ def main(argv):
       
       set_size = audio_processor.set_size('validation')
       total_rmse = 0
+      weights = np.array([], dtype=np.float32)
+      values = np.array([], dtype=np.float32)
 
-      for i in xrange(0, set_size, FLAGS.batch_size):
+      for i in range(0, set_size, FLAGS.batch_size):
         validation_fingerprints, validation_ground_truth = (
             audio_processor.get_data(FLAGS.batch_size, i, model_settings,
                                      'validation', sess))
@@ -218,34 +216,32 @@ def main(argv):
               root_mean_squared_error
             ],
             feed_dict={
-                fingerprint_input: validation_fingerprints,
-                ground_truth_input: validation_ground_truth,
-                phase_train: False
+              fingerprint_input: validation_fingerprints,
+              ground_truth_input: validation_ground_truth,
+              phase_train: False
             })
 
+        weights = np.append(weights, validation_fingerprints.shape[0] / set_size)
+        values = np.append(values, validation_rmse)
         validation_writer.add_summary(validation_summary, training_step)
-        batch_size = min(FLAGS.batch_size, set_size - i)
-        total_rmse += (validation_rmse * batch_size) / set_size
-
         tf.logging.info('i=%d: rmse = %.2f' % (i, validation_rmse))
-      tf.logging.info('total rmse = %.2f (N=%d)' % (total_rmse, set_size))
-      tf.logging.info('***************** ********** *****************')
 
-    # Save the model checkpoint periodically.
-    # if (training_step % FLAGS.save_step_interval == 0 or
-    #     training_step == training_steps_max):
-    #   checkpoint_path = os.path.join(FLAGS.train_dir,
-    #                                  FLAGS.model_architecture + '.ckpt')
-      # tf.logging.info('Saving to "%s-%d"', checkpoint_path, training_step)
-      # saver.save(sess, checkpoint_path, global_step=training_step)
+      weighted_rmse = np.dot(values, weights)
+      weighted_rmse_summary = tf.Summary(value=[tf.Summary.Value(tag='rmse',
+                                                     simple_value=weighted_rmse)])
+      weighted_validation.add_summary(weighted_rmse_summary, training_step)
+      tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
+      tf.logging.info('***************** ********** *****************')
 
   tf.logging.info('')
   tf.logging.info('****************** Testing ******************')
   
   set_size = audio_processor.set_size('testing')
   total_rmse = 0
+  weights = []
+  values = []
   
-  for i in xrange(0, set_size, FLAGS.batch_size):
+  for i in range(0, set_size, FLAGS.batch_size):
     test_fingerprints, test_ground_truth = audio_processor.get_data(
         FLAGS.batch_size, i, model_settings, 'testing', sess)
 
@@ -260,12 +256,16 @@ def main(argv):
             phase_train: False
         })
 
-    batch_size = min(FLAGS.batch_size, set_size - i)
-    total_rmse += (test_rmse * batch_size) / set_size
-
+    weights.append(validation_fingerprints.shape[0] / set_size)
+    values.append(validation_rmse)
+    # test_writer.add_summary(testing_summary, i)
     tf.logging.info('i=%d: rmse = %.2f' % (i, test_rmse))
-  tf.logging.info('total rmse = %.2f (N=%d)' % (total_rmse, set_size))
+
+  weighted_rmse = np.dot(values, weights)
+  tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
   tf.logging.info('***************** ********** *****************')
+
+  sess.close()
 
 if __name__ == '__main__':
   FLAGS, _unparsed = config.set_flags()
