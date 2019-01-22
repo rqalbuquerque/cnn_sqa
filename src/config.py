@@ -6,9 +6,18 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+import json
+
+def save_configs(flags, out_dir):
+  with open(out_dir + '/' + 'configs.json', "w") as f:
+    json.dump(flags, f, indent=2)
+
+def read_config(config_path): 
+  with open(config_path) as f:
+    return json.load(f)
 
 def set_flags(configs={}):
-  parser = argparse.ArgumentParser()
+  parser = argparse.ArgumentParser(description='Process model args.')
 
 # config DIRs
   parser.add_argument(
@@ -45,22 +54,22 @@ def set_flags(configs={}):
   parser.add_argument(
       '--testing_percentage',
       type=int,
-      default=configs.get('testing_percentage', 20),
+      default=configs.get('testing_percentage', 5),
       help='What percentage of wavs to use as a test set.')
   parser.add_argument(
       '--validation_percentage',
       type=int,
-      default=configs.get('validation_percentage', 20),
+      default=configs.get('validation_percentage', 5),
       help='What percentage of wavs to use as a validation set.')
   parser.add_argument(
       '--batch_size',
       type=int,
-      default=configs.get('batch_size', 2),
+      default=configs.get('batch_size', 5),
       help='How many items to train with at once')
   parser.add_argument(
       '--training_steps',
       type=str,
-      default=configs.get('training_steps', [5,1]),
+      default=configs.get('training_steps', [30,5]),
       help='How many training loops to run')  
   parser.add_argument(
       '--learning_rate',
@@ -72,7 +81,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--input_processing_lib',
       type=str,
-      default=configs.get('input_processing_lib', 'librosa'),
+      default=configs.get('input_processing_lib', 'tensorflow'),
       help='Processing library of audio samples')
   parser.add_argument(
       '--sample_rate',
@@ -89,7 +98,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--data_aug_algorithms',
       type=list,
-      default=configs.get('data_aug_algorithms', ['random_circular_shift']),
+      default=configs.get('data_aug_algorithms', []),
       help='Expected sample rate of the wavs')
 
 # config Spectrogram
@@ -106,13 +115,13 @@ def set_flags(configs={}):
   parser.add_argument(
       '--feature',
       type=str,
-      default=configs.get('feature', 'amplitude_to_db'),
-      help='How long each spectrogram timeslice is')
+      default=configs.get('feature', 'mfcc'),
+      help='How feature use')
   parser.add_argument(
       '--dct_coefficient_count',
       type=int,
-      default=configs.get('dct_coefficient_count', 129),
-      help='How many bins to use for the MFCC fingerprint')
+      default=configs.get('dct_coefficient_count', 40),
+      help='How many bins to use for the feature fingerprint')
 
 # config CNN
   parser.add_argument(
@@ -128,27 +137,32 @@ def set_flags(configs={}):
   parser.add_argument(
       '--filter_width',
       type=list,
-      default=configs.get('filter_width', [1,3,5]),
+      default=configs.get('filter_width', [3,5,7]),
       help='What filter width to use')
   parser.add_argument(
       '--filter_height',
       type=list,
-      default=configs.get('filter_height', [1,3,5]),
+      default=configs.get('filter_height', [3,5,7]),
       help='What filter height to use')
   parser.add_argument(
       '--filter_count',
       type=list,
-      default=configs.get('filter_count', [1,3,5]),
+      default=configs.get('filter_count', [3,3,3]),
       help='What filter count to use')
   parser.add_argument(
       '--stride',
       type=list,
-      default=configs.get('stride', [1,1,1]),
+      default=configs.get('stride', [2,3,4]),
       help='What long stride to use')
+  parser.add_argument(
+      '--apply_batch_norm',
+      type=bool,
+      default=configs.get('apply_batch_norm', True),
+      help='Decide to apply batch normalization')
   parser.add_argument(
       '--pooling',
       type=str,
-      default=configs.get('pooling', 'avg'),
+      default=configs.get('pooling', ''),
       help='What pooling type to use.')
   
 # config FC
