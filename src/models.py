@@ -35,6 +35,7 @@ def prepare_model_settings(input_processing_lib,
                            filter_count,
                            stride,
                            apply_batch_norm,
+                           activation,
                            pooling,
                            fc_layers,
                            hidden_units):
@@ -64,6 +65,7 @@ def prepare_model_settings(input_processing_lib,
       'stride': stride,
       'pooling': pooling,
       'apply_batch_norm': apply_batch_norm,
+      'activation': activation,
       'fc_layers': fc_layers,
       'hidden_units': hidden_units
   }
@@ -79,7 +81,8 @@ def load_variables_from_checkpoint(sess, start_checkpoint):
   saver.restore(sess, start_checkpoint)
 
 def activation(input_tensor, mode):
-  return tf.nn.relu(input_tensor, name="relu") if mode == "relu" else input_tensor
+  with tf.name_scope('activation'):
+    return tf.nn.relu(input_tensor, name="relu") if mode == "relu" else input_tensor
 
 """Utility function to add pooling to the graph.
 
@@ -200,6 +203,12 @@ def fully_connected(input_tensor,
 
     return fc
 
+def flatten(input_tensor):
+  with tf.name_scope('flatten'):
+    [_, output_height, output_width, output_depth] = input_tensor.get_shape()
+    element_count = int(output_height * output_width * output_depth)
+    return tf.reshape(input_tensor, [-1, element_count])
+
 """Builds a model of the requested architecture compatible with the settings.
 
 There are many possible ways of deriving predictions from a spectrogram
@@ -237,6 +246,8 @@ def create_model(fingerprint_input,
 
   if model_architecture == 'conv':
     return create_conv_model(fingerprint_input, model_settings)
+  elif model_architecture == 'slim_conv':
+    return create_slim_conv_model(fingerprint_input, model_settings)
   else:
     raise Exception('model_architecture argument "' + model_architecture +
                     '" not recognized, should be "conv"')
@@ -322,12 +333,12 @@ def create_conv_model(fingerprint_input, model_settings):
   output_conv = activation(conv_3, "relu")
 
   # pooling
-  if model_settings['pooling']:
-    output_conv = x_pooling(output_conv, 
-                         model_settings['pooling'], 
-                         [1, 2, 2, 1], 
-                         [1, 2, 2, 1], 
-                         'SAME')
+  # if model_settings['pooling'][2]:
+  #   output_conv = x_pooling(output_conv, 
+  #                        model_settings['pooling'][2], 
+  #                        [1, 2, 2, 1], 
+  #                        [1, 2, 2, 1], 
+  #                        'SAME')
 
   # flattened 
   [_, output_height, output_width, output_depth] = output_conv.get_shape()
@@ -347,5 +358,45 @@ def create_conv_model(fingerprint_input, model_settings):
   # tf.summary.image('conv_2_feat_map', conv_2, 1)
   # tf.summary.image('conv_3_feat_map', conv_3, 1)
 
+  return estimator, phase_train
+
+
+def create_slim_conv_model(fingerprint_input, model_settings):
+  dct_coefficient_count = model_settings['dct_coefficient_count']
+  spectrogram_length = model_settings['spectrogram_length']
+  fingerprint = tf.reshape(fingerprint_input, [-1, dct_coefficient_count, spectrogram_length, 1])
+  phase_train = tf.placeholder(tf.bool, name='phase_train')
+
+  # conv layers
+  output_conv = fingerprint
+  for i in range(0, model_settings['conv_layers']):
+    output_conv = conv_layer(output_conv, 
+                    model_settings['filter_height'][i], 
+                    model_settings['filter_width'][i], 
+                    int(output_conv.shape[-1]), 
+                    model_settings['stride'][i],
+                    model_settings['filter_count'][i],
+                    model_settings['enable_hist_summary'])
+    output_conv = batch_normalization(output_conv, model_settings['filter_count'][i], phase_train) if model_settings['apply_batch_norm'] else output_conv
+    output_conv = activation(output_conv, model_settings['activation'])
+    output_conv = x_pooling(output_conv, model_settings['pooling'][i], [1, 2, 2, 1], [1, 2, 2, 1], 'SAME') if model_settings['pooling'][i] else output_conv
+
+  # flattened 
+  [_, output_height, output_width, output_depth] = output_conv.get_shape()
+  element_count = int(output_height * output_width * output_depth)
+  flattened = tf.reshape(output_conv, [-1, element_count])
+
+  # fc layer 1
+  fc_1 = fully_connected(flattened, element_count, model_settings['hidden_units'][0], model_settings['enable_hist_summary'])
+  output_fc = activation(fc_1, "relu")
+
+  # regression 
+  estimator = fully_connected(output_fc, int(output_fc.shape[-1]), 1, model_settings['enable_hist_summary'])
+  
+  # log
+  tf.summary.image('input', fingerprint, 1)
+  # tf.summary.image('conv_1_feat_map', conv_1, 1)
+  # tf.summary.image('conv_2_feat_map', conv_2, 1)
+  # tf.summary.image('conv_3_feat_map', conv_3, 1)
 
   return estimator, phase_train

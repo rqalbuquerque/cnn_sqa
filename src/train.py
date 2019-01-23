@@ -62,6 +62,7 @@ def main(argv):
       FLAGS.filter_count,
       FLAGS.stride,
       FLAGS.apply_batch_norm,
+      FLAGS.activation,
       FLAGS.pooling,
       FLAGS.fc_layers,
       FLAGS.hidden_units)
@@ -72,10 +73,10 @@ def main(argv):
       model_settings)
 
   # print size of training, validation and testing data
-  print("***************** DataBase Length *****************")
-  print("Training length: " + str(audio_processor.set_size('training')))
-  print("Validation length: " + str(audio_processor.set_size('validation')))
-  print("Testing length: " + str(audio_processor.set_size('testing')))
+  tf.logging.info("***************** DataBase Length *****************")
+  tf.logging.info("Training length: " + str(audio_processor.set_size('training')))
+  tf.logging.info("Validation length: " + str(audio_processor.set_size('validation')))
+  tf.logging.info("Testing length: " + str(audio_processor.set_size('testing')))
 
   # input
   fingerprint_input = tf.placeholder(
@@ -233,37 +234,38 @@ def main(argv):
       tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
       tf.logging.info('***************** ********** *****************')
 
-  tf.logging.info('')
-  tf.logging.info('****************** Testing ******************')
-  
-  set_size = audio_processor.set_size('testing')
-  total_rmse = 0
-  weights = []
-  values = []
-  
-  for i in range(0, set_size, FLAGS.batch_size):
-    test_fingerprints, test_ground_truth = audio_processor.get_data(
-        FLAGS.batch_size, i, model_settings, 'testing', sess)
+  if FLAGS.apply_testing:
+    tf.logging.info('')
+    tf.logging.info('****************** Testing ******************')
+    
+    set_size = audio_processor.set_size('testing')
+    total_rmse = 0
+    weights = []
+    values = []
+    
+    for i in range(0, set_size, FLAGS.batch_size):
+      test_fingerprints, test_ground_truth = audio_processor.get_data(
+          FLAGS.batch_size, i, model_settings, 'testing', sess)
 
-    testing_summary, test_rmse = sess.run(
-        [
-          merged_summaries, 
-          root_mean_squared_error
-        ],
-        feed_dict={
-            fingerprint_input: test_fingerprints,
-            ground_truth_input: test_ground_truth,
-            phase_train: False
-        })
+      testing_summary, test_rmse = sess.run(
+          [
+            merged_summaries, 
+            root_mean_squared_error
+          ],
+          feed_dict={
+              fingerprint_input: test_fingerprints,
+              ground_truth_input: test_ground_truth,
+              phase_train: False
+          })
 
-    weights.append(validation_fingerprints.shape[0] / set_size)
-    values.append(validation_rmse)
-    # test_writer.add_summary(testing_summary, i)
-    tf.logging.info('i=%d: rmse = %.2f' % (i, test_rmse))
+      weights.append(test_fingerprints.shape[0] / set_size)
+      values.append(test_rmse)
+      # test_writer.add_summary(testing_summary, i)
+      tf.logging.info('i=%d: rmse = %.2f' % (i, test_rmse))
 
-  weighted_rmse = np.dot(values, weights)
-  tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
-  tf.logging.info('***************** ********** *****************')
+    weighted_rmse = np.dot(values, weights)
+    tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
+    tf.logging.info('***************** ********** *****************')
 
   sess.close()
 

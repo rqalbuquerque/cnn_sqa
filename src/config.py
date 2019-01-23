@@ -23,7 +23,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--data_dir',
       type=str,
-      default=configs.get('data_dir', '../database/speech_dataset_test'),
+      default=configs.get('data_dir', '../database/speech_dataset'),
       help=""" Where to download the speech training data to. """)
   parser.add_argument(
       '--summaries_dir',
@@ -54,12 +54,12 @@ def set_flags(configs={}):
   parser.add_argument(
       '--testing_percentage',
       type=int,
-      default=configs.get('testing_percentage', 5),
+      default=configs.get('testing_percentage', 50),
       help='What percentage of wavs to use as a test set.')
   parser.add_argument(
       '--validation_percentage',
       type=int,
-      default=configs.get('validation_percentage', 5),
+      default=configs.get('validation_percentage', 1),
       help='What percentage of wavs to use as a validation set.')
   parser.add_argument(
       '--batch_size',
@@ -69,7 +69,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--training_steps',
       type=str,
-      default=configs.get('training_steps', [30,5]),
+      default=configs.get('training_steps', [50,10]),
       help='How many training loops to run')  
   parser.add_argument(
       '--learning_rate',
@@ -127,7 +127,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default=configs.get('model_architecture', 'conv'),
+      default=configs.get('model_architecture', 'slim_conv'),
       help='What model architecture to use')
   parser.add_argument(
       '--conv_layers',
@@ -147,12 +147,12 @@ def set_flags(configs={}):
   parser.add_argument(
       '--filter_count',
       type=list,
-      default=configs.get('filter_count', [3,3,3]),
+      default=configs.get('filter_count', [5,5,5]),
       help='What filter count to use')
   parser.add_argument(
       '--stride',
       type=list,
-      default=configs.get('stride', [2,3,4]),
+      default=configs.get('stride', [2,2,2]),
       help='What long stride to use')
   parser.add_argument(
       '--apply_batch_norm',
@@ -161,9 +161,14 @@ def set_flags(configs={}):
       help='Decide to apply batch normalization')
   parser.add_argument(
       '--pooling',
-      type=str,
-      default=configs.get('pooling', ''),
+      type=list,
+      default=configs.get('pooling', ['','','']),
       help='What pooling type to use.')
+  parser.add_argument(
+      '--activation',
+      type=str,
+      default=configs.get('activation', 'relu'),
+      help='What activation function type to use')
   
 # config FC
   parser.add_argument(
@@ -180,7 +185,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--eval_step_interval',
       type=int,
-      default=configs.get('eval_step_interval', 2),
+      default=configs.get('eval_step_interval', 5),
       help='How often to evaluate the training results.')
   parser.add_argument(
       '--save_step_interval',
@@ -192,6 +197,13 @@ def set_flags(configs={}):
       type=str,
       default=configs.get('start_checkpoint', ''),
       help='If specified, restore this pretrained model before any training.')
+
+# testing
+  parser.add_argument(
+      '--apply_testing',
+      type=str,
+      default=configs.get('apply_testing', False),
+      help='Apply or not testing step.')
 
 # config nans checking
   parser.add_argument(
