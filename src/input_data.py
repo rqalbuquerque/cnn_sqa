@@ -25,8 +25,6 @@ from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 
 MAX_NUM_WAVS_PER_CLASS = 2**27 - 1  # ~134M
-RANDOM_SEED = 59185
-
 
 """Determines which data partition the file should belong to.
 
@@ -58,13 +56,9 @@ class AudioProcessor(object):
 
   def __init__(self, data_dir, validation_percentage, testing_percentage, model_settings):
     self.prepare_data_index(data_dir, validation_percentage, testing_percentage)
-    
-    if model_settings['input_processing_lib'] == 'tensorflow':
-      self.prepare_processing_input_graph(model_settings)
-      self.prepare_processing_feature_graph(model_settings)
-    elif model_settings['input_processing_lib'] == 'librosa':
-      self.prepare_processing_input_librosa(model_settings)
-      self.prepare_processing_feature_librosa(model_settings)
+    self.prepare_processing_input(model_settings)
+    self.prepare_data_info(model_settings)
+          
   """Prepares a list of the samples organized by set.
 
   The training loop needs a list of all the available data.
@@ -117,6 +111,18 @@ class AudioProcessor(object):
   def set_indexes(self, set_index):
     return self.data_index[set_index] if set_index in {'training', 'validation', 'testing'} else [] 
 
+  def prepare_data_info(self, model_settings):
+    self.input_processing_lib = model_settings['input_processing_lib']
+    self.fingerprint_size = model_settings['fingerprint_size']
+    self.data_aug_algorithms = model_settings['data_aug_algorithms']
+
+  def prepare_processing_input(self, model_settings):
+    if model_settings['input_processing_lib'] == 'tensorflow':
+      self.prepare_processing_input_graph(model_settings)
+      self.prepare_processing_feature_graph(model_settings)
+    elif model_settings['input_processing_lib'] == 'librosa':
+      self.prepare_processing_input_librosa(model_settings)
+      self.prepare_processing_feature_librosa(model_settings)
 
   """Builds a TensorFlow graph to apply the input distortions.
 
@@ -267,15 +273,15 @@ class AudioProcessor(object):
   """
   # Pick one of the partitions to choose samples from.
 
-  def get_data(self, qty, offset, model_settings, mode, sess):
+  def get_data(self, qty, offset, mode, sess):
     candidates, total = self.data_index[mode], self.set_size(mode)
     sample_count = total if qty < 1 else max(1, min(qty, total - offset))
     
     # Data augmentation algorithms
-    variations_count = (len(model_settings['data_aug_algorithms']) + 1) if (mode == 'training') else 1
+    variations_count = (len(self.data_aug_algorithms) + 1) if (mode == 'training') else 1
 
     # Data and scores will be populated and returned.
-    data = np.zeros((sample_count*variations_count, model_settings['fingerprint_size']))
+    data = np.zeros((sample_count*variations_count, self.fingerprint_size))
     scores = np.zeros((sample_count*variations_count, 1))
 
     # Use the processing graph created earlier to repeatedly to generate the
@@ -286,17 +292,17 @@ class AudioProcessor(object):
       original_sample = candidates[sample_index]
 
       # load waveform
-      original_waveform = self.load_waveform(original_sample['file'], model_settings['input_processing_lib'], sess)
+      original_waveform = self.load_waveform(original_sample['file'], self.input_processing_lib, sess)
       original_score = original_sample['score']
 
       # Generates data augmentation variations
       variations = (original_waveform,)
       for j in xrange(0, variations_count-1):
-        variations += (data_augmentation.apply(original_waveform, model_settings['data_aug_algorithms'][j]),)
+        variations += (data_augmentation.apply(original_waveform, self.data_aug_algorithms[j]),)
 
       # Produce the output feature
       for j in xrange(0, variations_count):
-        data[i + j - offset, :] = self.gen_feature(variations[j], model_settings['input_processing_lib'], sess)
+        data[i + j - offset, :] = self.gen_feature(variations[j], self.input_processing_lib, sess)
         scores[i + j - offset] = original_score
 
     return data, scores

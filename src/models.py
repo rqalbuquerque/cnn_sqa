@@ -333,12 +333,12 @@ def create_conv_model(fingerprint_input, model_settings):
   output_conv = activation(conv_3, "relu")
 
   # pooling
-  # if model_settings['pooling'][2]:
-  #   output_conv = x_pooling(output_conv, 
-  #                        model_settings['pooling'][2], 
-  #                        [1, 2, 2, 1], 
-  #                        [1, 2, 2, 1], 
-  #                        'SAME')
+  if model_settings['pooling'][2]:
+    output_conv = x_pooling(output_conv, 
+                         model_settings['pooling'][2], 
+                         [1, 2, 2, 1], 
+                         [1, 2, 2, 1], 
+                         'SAME')
 
   # flattened 
   [_, output_height, output_width, output_depth] = output_conv.get_shape()

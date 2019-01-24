@@ -101,7 +101,7 @@ def set_flags(configs={}):
       default=configs.get('data_aug_algorithms', []),
       help='Expected sample rate of the wavs')
 
-# config Spectrogram
+# config Feature
   parser.add_argument(
       '--window_size_ms',
       type=float,
@@ -200,9 +200,9 @@ def set_flags(configs={}):
 
 # testing
   parser.add_argument(
-      '--apply_testing',
+      '--evaluate_testing',
       type=str,
-      default=configs.get('apply_testing', False),
+      default=configs.get('evaluate_testing', False),
       help='Apply or not testing step.')
 
 # config nans checking

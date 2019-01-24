@@ -82,15 +82,12 @@ def main(argv):
   fingerprint_input = tf.placeholder(
       tf.float32, [None, model_settings['fingerprint_size']], name='fingerprint_input')
 
+  ground_truth_input = tf.placeholder(
+    tf.float32, [None, 1], name='groundtruth_input')
+  
   # model
   estimator, phase_train = models.create_model(
-      fingerprint_input,
-      model_settings,
-      FLAGS.model_architecture,
-      is_training=True)
-
-  # Define loss and optimizer
-  ground_truth_input = tf.placeholder(tf.float32, [None, 1], name='groundtruth_input')
+      fingerprint_input, model_settings, FLAGS.model_architecture, is_training=True)
 
   # Optionally we can add runtime checks to spot when NaNs or other symptoms of
   # numerical errors start occurring during training.
@@ -99,6 +96,7 @@ def main(argv):
     checks = tf.add_check_numerics_ops()
     control_dependencies = [checks]
 
+  # Define loss and optimizer
   # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('loss'):
     root_mean_squared_error = tf.sqrt(
@@ -115,14 +113,15 @@ def main(argv):
   increment_global_step = tf.assign(global_step, global_step + 1)
 
   # saver = tf.train.Saver(tf.global_variables())
-
-  # Merge all the summaries and write them out to /tmp/retrain_logs (by default)
+  
+  # Merge all the summaries and write them 
   merged_summaries = tf.summary.merge_all()
   log_dir = create_log_path(FLAGS.summaries_dir)
-
   train_writer = tf.summary.FileWriter(log_dir + '/train', sess.graph)
   validation_writer = tf.summary.FileWriter(log_dir + '/validation')
   weighted_validation = tf.summary.FileWriter(log_dir + '/weighted_validation')
+  
+  config.save_configs(FLAGS.__dict__, log_dir)
 
   if FLAGS.enable_profile:
     profile_dir = FLAGS.summaries_dir + '/profile'
@@ -135,41 +134,37 @@ def main(argv):
     models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
     start_step = global_step.eval(session=sess)
 
-  config.save_configs(FLAGS.__dict__, log_dir)
-
   # Save graph.pbtxt.
-  #tf.train.write_graph(sess.graph_def, FLAGS.train_dir, FLAGS.model_architecture + '.pbtxt')
+  # tf.train.write_graph(sess.graph_def, FLAGS.train_dir, FLAGS.model_architecture + '.pbtxt')
 
-  training_steps_list = FLAGS.training_steps
-  learning_rates_list = FLAGS.learning_rate
-  if len(training_steps_list) != len(learning_rates_list):
+  if len(FLAGS.training_steps) != len(FLAGS.learning_rate):
     raise Exception(
         '--training_steps and --learning_rate must be equal length '
-        'lists, but are %d and %d long instead' % (len(training_steps_list),
-                                                   len(learning_rates_list)))
-  
+        'lists, but are %d and %d long instead' % (len(FLAGS.training_steps),
+                                                   len(FLAGS.training_steps)))
+
   tf.logging.info('"***************** Training *****************')
   tf.logging.info('Training from step: %d ', start_step)
 
-  # options = None
-  # run_metadata = None
-  # if FLAGS.enable_profile:
-  #   options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-  #   run_metadata = tf.RunMetadata()
+  options = None
+  run_metadata = None
+  if FLAGS.enable_profile:
+    options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+    run_metadata = tf.RunMetadata()
 
-  training_steps_max = np.sum(training_steps_list)
+  training_steps_max = np.sum(FLAGS.training_steps)
   for training_step in range(start_step, training_steps_max + 1):
     # Figure out what the current learning rate is.
     training_steps_sum = 0
-    for i in range(len(training_steps_list)):
-      training_steps_sum += training_steps_list[i]
+    for i in range(len(FLAGS.training_steps)):
+      training_steps_sum += FLAGS.training_steps[i]
       if training_step <= training_steps_sum:
-        learning_rate_value = learning_rates_list[i]
+        learning_rate_value = FLAGS.learning_rate[i]
         break
 
     # Pull the audio samples we'll use for training.
     train_fingerprints, train_ground_truth = audio_processor.get_data(
-        FLAGS.batch_size, 0, model_settings, 'training', sess)
+        FLAGS.batch_size, 0, 'training', sess)
 
     # Run the graph with this batch of training data.
     train_summary, train_rmse, _, _ = sess.run(
@@ -184,9 +179,9 @@ def main(argv):
             ground_truth_input: train_ground_truth,
             learning_rate_input: learning_rate_value,
             phase_train: True
-        })
-        # options=options,
-        # run_metadata=run_metadata)
+        },
+        options=options,
+        run_metadata=run_metadata)
 
     train_writer.add_summary(train_summary, training_step)
     tf.logging.info('step #%d: rate %f, rmse %f' %
@@ -208,8 +203,7 @@ def main(argv):
 
       for i in range(0, set_size, FLAGS.batch_size):
         validation_fingerprints, validation_ground_truth = (
-            audio_processor.get_data(FLAGS.batch_size, i, model_settings,
-                                     'validation', sess))
+            audio_processor.get_data(FLAGS.batch_size, i, 'validation', sess))
 
         validation_summary, validation_rmse = sess.run(
             [
@@ -234,18 +228,18 @@ def main(argv):
       tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
       tf.logging.info('***************** ********** *****************')
 
-  if FLAGS.apply_testing:
+  if FLAGS.evaluate_testing:
     tf.logging.info('')
     tf.logging.info('****************** Testing ******************')
     
     set_size = audio_processor.set_size('testing')
     total_rmse = 0
-    weights = []
-    values = []
+    weights = np.array([], dtype=np.float32)
+    values = np.array([], dtype=np.float32)
     
     for i in range(0, set_size, FLAGS.batch_size):
       test_fingerprints, test_ground_truth = audio_processor.get_data(
-          FLAGS.batch_size, i, model_settings, 'testing', sess)
+          FLAGS.batch_size, i, 'testing', sess)
 
       testing_summary, test_rmse = sess.run(
           [
@@ -258,9 +252,9 @@ def main(argv):
               phase_train: False
           })
 
-      weights.append(test_fingerprints.shape[0] / set_size)
-      values.append(test_rmse)
-      # test_writer.add_summary(testing_summary, i)
+      weights = np.append(weights, test_fingerprints.shape[0] / set_size)
+      values = np.append(values, test_rmse)
+      test_writer.add_summary(testing_summary, training_steps_max + i + 1)
       tf.logging.info('i=%d: rmse = %.2f' % (i, test_rmse))
 
     weighted_rmse = np.dot(values, weights)
