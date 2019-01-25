@@ -306,3 +306,14 @@ class AudioProcessor(object):
         scores[i + j - offset] = original_score
 
     return data, scores
+
+  def get_indexed_samples(self, qty, offset, mode, sess):
+    candidates, total = self.data_index[mode], self.set_size(mode)
+    sample_count = total if qty < 1 else max(1, min(qty, total - offset))
+    data = np.zeros((sample_count, self.fingerprint_size))
+   
+    for i in xrange(offset, offset + sample_count):
+      original_waveform = self.load_waveform(candidates[i]['file'], self.input_processing_lib, sess)
+      data[i - offset, :] = self.gen_feature(original_waveform, self.input_processing_lib, sess)
+
+    return data

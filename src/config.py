@@ -40,7 +40,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--enable_hist_summary',
       type=str,
-      default=configs.get('enable_hist_summary', False),
+      default=configs.get('enable_hist_summary', True),
       help='Directory to write event logs and checkpoint.')
 
 # config profile
@@ -94,7 +94,17 @@ def set_flags(configs={}):
       default=configs.get('clip_duration_ms', 8000),
       help='Expected duration in milliseconds of the wavs')
 
-# config Data Augmentation
+# config Data Manipulation
+  parser.add_argument(
+      '--generate_statistics',
+      type=bool,
+      default=configs.get('generate_statistics', False),
+      help='Expected sample rate of the wavs')
+  parser.add_argument(
+      '--apply_normalization',
+      type=bool,
+      default=configs.get('apply_normalization', False),
+      help='Expected sample rate of the wavs')
   parser.add_argument(
       '--data_aug_algorithms',
       type=list,

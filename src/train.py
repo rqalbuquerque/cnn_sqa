@@ -18,6 +18,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.client import timeline
 
+import statistics
+import normalization
 import input_data
 import models
 import config
@@ -71,6 +73,12 @@ def main(argv):
       FLAGS.validation_percentage,
       FLAGS.testing_percentage, 
       model_settings)
+
+  # get statistics from data
+  if FLAGS.generate_statistics:
+    with tf.name_scope('statistics'):
+      stats_generator = statistics.BatchGenerator(audio_processor, 'training', FLAGS.batch_size)
+      min_from_data, max_from_data = stats_generator.gen_statistics('min_max', sess)
 
   # print size of training, validation and testing data
   tf.logging.info("***************** DataBase Length *****************")
@@ -166,6 +174,12 @@ def main(argv):
     train_fingerprints, train_ground_truth = audio_processor.get_data(
         FLAGS.batch_size, 0, 'training', sess)
 
+    # apply normalization
+    if FLAGS.apply_normalization:
+      with tf.name_scope('normalization'):
+        train_fingerprints = normalization.norm_by_min_max(
+          train_fingerprints, min_from_data, max_from_data)
+
     # Run the graph with this batch of training data.
     train_summary, train_rmse, _, _ = sess.run(
         [
@@ -205,6 +219,12 @@ def main(argv):
         validation_fingerprints, validation_ground_truth = (
             audio_processor.get_data(FLAGS.batch_size, i, 'validation', sess))
 
+        # apply normalization
+        if FLAGS.apply_normalization:
+          with tf.name_scope('normalization'):
+            validation_fingerprints = normalization.norm_by_min_max(
+              validation_fingerprints, min_from_data, max_from_data)
+
         validation_summary, validation_rmse = sess.run(
             [
               merged_summaries, 
@@ -240,6 +260,12 @@ def main(argv):
     for i in range(0, set_size, FLAGS.batch_size):
       test_fingerprints, test_ground_truth = audio_processor.get_data(
           FLAGS.batch_size, i, 'testing', sess)
+
+      # apply normalization
+      if FLAGS.apply_normalization:
+        with tf.name_scope('normalization'):
+          test_fingerprints = normalization.norm_by_min_max(
+            test_fingerprints, min_from_data, max_from_data)
 
       testing_summary, test_rmse = sess.run(
           [
