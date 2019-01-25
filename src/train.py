@@ -177,8 +177,8 @@ def main(argv):
     # apply normalization
     if FLAGS.apply_normalization:
       with tf.name_scope('normalization'):
-        train_fingerprints = normalization.norm_by_min_max(
-          train_fingerprints, min_from_data, max_from_data)
+        train_fingerprints = normalization.normalize(
+          train_fingerprints, 'min', [min_from_data])
 
     # Run the graph with this batch of training data.
     train_summary, train_rmse, _, _ = sess.run(
@@ -222,8 +222,8 @@ def main(argv):
         # apply normalization
         if FLAGS.apply_normalization:
           with tf.name_scope('normalization'):
-            validation_fingerprints = normalization.norm_by_min_max(
-              validation_fingerprints, min_from_data, max_from_data)
+            validation_fingerprints = normalization.normalize(
+              validation_fingerprints, 'min', [min_from_data])
 
         validation_summary, validation_rmse = sess.run(
             [
@@ -264,8 +264,8 @@ def main(argv):
       # apply normalization
       if FLAGS.apply_normalization:
         with tf.name_scope('normalization'):
-          test_fingerprints = normalization.norm_by_min_max(
-            test_fingerprints, min_from_data, max_from_data)
+          test_fingerprints = normalization.normalize(
+            test_fingerprints, 'min', [min_from_data])
 
       testing_summary, test_rmse = sess.run(
           [
