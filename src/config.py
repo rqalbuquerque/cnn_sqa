@@ -65,7 +65,7 @@ def set_flags(configs={}):
       '--batch_size',
       type=int,
       default=configs.get('batch_size', 5),
-      help='How many items to train with at once')
+      help='How many items to radomly select to apply mini-batch train0')
   parser.add_argument(
       '--training_steps',
       type=str,
@@ -95,16 +95,6 @@ def set_flags(configs={}):
       help='Expected duration in milliseconds of the wavs')
 
 # config Data Manipulation
-  parser.add_argument(
-      '--generate_statistics',
-      type=bool,
-      default=configs.get('generate_statistics', False),
-      help='Expected sample rate of the wavs')
-  parser.add_argument(
-      '--apply_normalization',
-      type=bool,
-      default=configs.get('apply_normalization', False),
-      help='Expected sample rate of the wavs')
   parser.add_argument(
       '--data_aug_algorithms',
       type=list,
