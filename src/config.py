@@ -183,9 +183,14 @@ def set_flags(configs={}):
       help='Number of units in hidden layers.')
 
   parser.add_argument(
+      '--summary_step_interval',
+      type=int,
+      default=configs.get('summary_step_interval', 5),
+      help='How often to summary the training results.')
+  parser.add_argument(
       '--eval_step_interval',
       type=int,
-      default=configs.get('eval_step_interval', 5),
+      default=configs.get('eval_step_interval', 10),
       help='How often to evaluate the training results.')
   parser.add_argument(
       '--save_step_interval',

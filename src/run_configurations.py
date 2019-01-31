@@ -15,7 +15,7 @@ if __name__ == '__main__':
       print('Running configuration: ' + filename)
       print('----------------------------------------------')
       FLAGS, _unparsed = config.set_flags(config.read_config(filename))
-      processThread = threading.Thread(target=train.main, args=[[FLAGS]])
+      processThread = threading.Thread(target=train.main, args=[[FLAGS, os.path.splitext(filename)[0]]])
       processThread.start()
       processThread.join()
       print('----------------------------------------------')

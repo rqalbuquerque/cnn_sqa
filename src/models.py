@@ -391,7 +391,6 @@ def create_slim_conv_model(fingerprint_input, model_settings):
   for i in range(0, model_settings['fc_layers']):
     fc_1 = fully_connected(output_fc, output_fc.shape[-1].value, model_settings['hidden_units'][i], model_settings['enable_hist_summary'])
     output_fc = activation(fc_1, "relu")
-    print(output_fc.get_shape())
 
   # regression 
   estimator = fully_connected(output_fc, int(output_fc.shape[-1]), 1, model_settings['enable_hist_summary'])

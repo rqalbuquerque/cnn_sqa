@@ -7,6 +7,8 @@ from __future__ import print_function
 
 from tabulate import tabulate
 from collections import Counter
+from datetime import datetime
+
 import time
 import re
 import csv
@@ -23,22 +25,23 @@ import input_data
 import models
 import config
 
-def create_log_path(log_dir):
-  dirs = os.listdir(log_dir)
-  if len(dirs) > 0:
-    indexes = [int(x.replace('run','')) for x in dirs]
-    num = sorted(indexes)[-1] + 1
-    return log_dir + '/run' + str(num)
+def create_log_path(log_dir, config_name=''):
+  if config_name:
+    return log_dir + '/run-' + config_name
   else:
-    return log_dir + '/run1'
+    now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    return log_dir + '/run-' + now
 
-def create_dir(directory): 
-  if not os.path.exists(directory):
-    os.makedirs(directory)
+def create_dir(new_dir): 
+  if not os.path.exists(new_dir):
+    os.makedirs(new_dir)
 
 def main(argv):
   # Get flags
-  [FLAGS] = argv
+  if len(argv) == 1:
+    [FLAGS], config_name = argv, ''
+  else:
+    [FLAGS, config_name] = argv
 
   # To see all the logging messages
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -67,6 +70,7 @@ def main(argv):
       FLAGS.pooling,
       FLAGS.fc_layers,
       FLAGS.hidden_units)
+
   audio_processor = input_data.AudioProcessor(
       FLAGS.data_dir,  
       FLAGS.validation_percentage,
@@ -97,13 +101,13 @@ def main(argv):
     checks = tf.add_check_numerics_ops()
     control_dependencies = [checks]
 
-  # Define loss and optimizer
-  # Create the back propagation and training evaluation machinery in the graph.
+  # Define loss 
   with tf.name_scope('loss'):
     root_mean_squared_error = tf.sqrt(
-      tf.reduce_mean(tf.squared_difference(ground_truth_input, estimator)))
+      tf.reduce_mean(tf.squared_difference(ground_truth_input, estimator)), name='rmse')
   tf.summary.scalar('rmse', root_mean_squared_error)
 
+  # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
     learning_rate_input = tf.placeholder(
         tf.float32, [], name='learning_rate_input')
@@ -113,11 +117,9 @@ def main(argv):
   global_step = tf.train.get_or_create_global_step()
   increment_global_step = tf.assign(global_step, global_step + 1)
 
-  # saver = tf.train.Saver(tf.global_variables())
-  
-  # Merge all the summaries and write them 
+  # Merge all the summaries and create file writers 
   merged_summaries = tf.summary.merge_all()
-  log_dir = create_log_path(FLAGS.summaries_dir)
+  log_dir = create_log_path(FLAGS.summaries_dir, config_name)
   train_writer = tf.summary.FileWriter(log_dir + '/train', sess.graph)
   validation_writer = tf.summary.FileWriter(log_dir + '/validation')
   weighted_validation = tf.summary.FileWriter(log_dir + '/weighted_validation')
@@ -134,9 +136,6 @@ def main(argv):
   if FLAGS.start_checkpoint:
     models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
     start_step = global_step.eval(session=sess)
-
-  # Save graph.pbtxt.
-  # tf.train.write_graph(sess.graph_def, FLAGS.train_dir, FLAGS.model_architecture + '.pbtxt')
 
   if len(FLAGS.training_steps) != len(FLAGS.learning_rate):
     raise Exception(
@@ -184,10 +183,12 @@ def main(argv):
         options=options,
         run_metadata=run_metadata)
 
-    train_writer.add_summary(train_summary, training_step)
     tf.logging.info('step #%d: rate %f, rmse %f' %
                     (training_step, learning_rate_value, train_rmse))
 
+    if (training_step % FLAGS.summary_step_interval) == 0:
+      train_writer.add_summary(train_summary, training_step)
+    
     if FLAGS.enable_profile:
       fetched_timeline = timeline.Timeline(run_metadata.step_stats)
       chrome_trace = fetched_timeline.generate_chrome_trace_format()
@@ -225,7 +226,7 @@ def main(argv):
       weighted_rmse = np.dot(values, weights)
       weighted_rmse_summary = tf.Summary(value=[tf.Summary.Value(tag='rmse',
                                                      simple_value=weighted_rmse)])
-      weighted_validation.add_summary(weighted_rmse_summary, training_step)
+      weighted_validation.add_summary(weighted_rmse_summary, training_step + set_size/FLAGS.batch_size - 1)
       tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
       tf.logging.info('***************** ********** *****************')
 
@@ -262,6 +263,9 @@ def main(argv):
     tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
     tf.logging.info('***************** ********** *****************')
 
+  train_writer.close()
+  validation_writer.close()
+  weighted_validation.close()
   sess.close()
 
 if __name__ == '__main__':
