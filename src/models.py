@@ -232,9 +232,8 @@ def fc_layer(input_tensor,
               enable_hist_summary):
   with tf.name_scope('fc'):
     fc = fully_connected(input_tensor, n_inputs, units, enable_hist_summary)
-    relu = activation(fc, activation_func)
-
-    return relu
+    actv = activation(fc, activation_func)
+    return actv
 
 
 def regression_layer(input_tensor,
@@ -401,35 +400,38 @@ def create_slim_conv_model(fingerprint_input, model_settings):
   fingerprint = tf.reshape(fingerprint_input, [-1, dct_coefficient_count, spectrogram_length, 1])
   phase_train = tf.placeholder(tf.bool, name='phase_train')
 
-  # conv layers
-  output_conv = fingerprint
-  for i in range(0, model_settings['conv_layers']):
-    output_conv = conv_layer(output_conv, 
-                    model_settings['filter_height'][i], 
-                    model_settings['filter_width'][i], 
-                    output_conv.shape[-1].value, 
-                    model_settings['stride'][i],
-                    model_settings['filter_count'][i],
-                    model_settings['apply_batch_norm'],
-                    phase_train,
-                    model_settings['activation'],
-                    model_settings['enable_hist_summary'])
-    output_conv = x_pooling(output_conv, model_settings['pooling'][i], [1, 2, 2, 1], [1, 2, 2, 1], 'SAME') if model_settings['pooling'][i] else output_conv
+  with tf.name_scope('conv'):
+    # conv layers
+    output_conv = fingerprint
+    for i in range(0, model_settings['conv_layers']):
+      output_conv = conv_layer(output_conv, 
+                      model_settings['filter_height'][i], 
+                      model_settings['filter_width'][i], 
+                      output_conv.shape[-1].value, 
+                      model_settings['stride'][i],
+                      model_settings['filter_count'][i],
+                      model_settings['apply_batch_norm'],
+                      phase_train,
+                      model_settings['activation'],
+                      model_settings['enable_hist_summary'])
+      output_conv = x_pooling(output_conv, model_settings['pooling'][i], [1, 2, 2, 1], [1, 2, 2, 1], 'SAME') if model_settings['pooling'][i] else output_conv
 
   # flattened 
   [_, output_height, output_width, output_depth] = output_conv.get_shape()
   element_count = int(output_height * output_width * output_depth)
   flattened = tf.reshape(output_conv, [-1, element_count])
 
-  # hidden layers
-  output_fc = flattened
-  for i in range(0, model_settings['fc_layers']):
-    output_fc = tf.layers.dense(output_fc, model_settings['hidden_units'][i], name='hidden', activation=get_activation_func(model_settings['activation']))
-    # output_fc = fc_layer(output_fc, output_fc.shape[-1].value, model_settings['hidden_units'][i], model_settings['activation'], model_settings['enable_hist_summary'])
+  with tf.name_scope('hidden'):
+    # hidden layers
+    output_fc = flattened
+    for i in range(0, model_settings['fc_layers']):
+      output_fc = tf.layers.dense(output_fc, model_settings['hidden_units'][i], activation=get_activation_func(model_settings['activation']))
+      # output_fc = fc_layer(output_fc, output_fc.shape[-1].value, model_settings['hidden_units'][i], model_settings['activation'], model_settings['enable_hist_summary'])
 
-  # regression 
-  estimator = tf.layers.dense(output_fc, 1, name='estimator')
-  # estimator = regression_layer(output_fc, output_fc.shape[-1].value, model_settings['enable_hist_summary'])
+  with tf.name_scope('regression'):
+    # regression 
+    estimator = tf.layers.dense(output_fc, 1)
+    # estimator = regression_layer(output_fc, output_fc.shape[-1].value, model_settings['enable_hist_summary'])
   
   # log
   tf.summary.image('input', fingerprint, 1)
