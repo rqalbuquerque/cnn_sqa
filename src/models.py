@@ -81,8 +81,15 @@ def load_variables_from_checkpoint(sess, start_checkpoint):
   saver.restore(sess, start_checkpoint)
 
 def activation(input_tensor, mode):
-  with tf.name_scope('activation'):
-    return tf.nn.relu(input_tensor, name="relu") if mode == "relu" else input_tensor
+  if mode == "softplus":
+    return tf.nn.softplus(input_tensor, name="softplus")
+  return tf.nn.relu(input_tensor, name="relu")
+
+def get_activation_func(mode):
+  if mode == "softplus":
+    return tf.nn.softplus 
+  return tf.nn.relu
+
 
 """Utility function to add pooling to the graph.
 
@@ -114,10 +121,8 @@ Return:
 """
 def batch_normalization(input_tensor, n_out, phase_train):
   with tf.name_scope('batch_norm'):
-    beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
-                                 name='beta', trainable=True)
-    gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
-                                  name='gamma', trainable=True)
+    beta = tf.Variable(tf.constant(0.0, shape=[n_out]), name='beta', trainable=True)
+    gamma = tf.Variable(tf.constant(1.0, shape=[n_out]), name='gamma', trainable=True)
     batch_mean, batch_var = tf.nn.moments(input_tensor, [0,1,2], name='moments')
     ema = tf.train.ExponentialMovingAverage(decay=0.5)
 
@@ -129,7 +134,57 @@ def batch_normalization(input_tensor, n_out, phase_train):
     mean, var = tf.cond(phase_train,
                         mean_var_with_update,
                         lambda: (ema.average(batch_mean), ema.average(batch_var)))
+    
     return tf.nn.batch_normalization(input_tensor, mean, var, beta, gamma, 1e-3)
+
+def convolution(input_tensor, 
+               filter_height, 
+               filter_width, 
+               filters_depth, 
+               stride,
+               output_maps_count,
+               enable_hist_summary):
+  weights = tf.Variable(
+    tf.truncated_normal(
+      [
+        filter_height, 
+        filter_width, 
+        filters_depth, 
+        output_maps_count
+      ],
+      stddev=0.01,
+      name='random'),
+    name='weights')
+  bias = tf.Variable(tf.zeros([output_maps_count]), name='biases')
+  conv = tf.math.add(tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME'), bias, name='sum')
+
+  if enable_hist_summary:
+    tf.summary.histogram('weights', weights)
+    tf.summary.histogram('bias', bias)
+
+  return conv
+
+def fully_connected(input_tensor, 
+                    n_inputs, 
+                    units, 
+                    enable_hist_summary):
+  weights = tf.Variable(
+    tf.truncated_normal(
+      [
+        n_inputs, 
+        units
+      ], 
+      stddev=0.01,
+      name='random'), 
+    name='weights')
+  bias = tf.Variable(tf.zeros([units]), name='biases')
+  fc = tf.math.add(tf.matmul(input_tensor, weights, name='mult'), bias, name='sum')
+
+  if enable_hist_summary:
+    tf.summary.histogram('weights', weights)
+    tf.summary.histogram('bias', bias)
+
+  return fc
 
 """
 Convolutional layer.
@@ -143,71 +198,50 @@ Args:
 Return:
     feature maps volume tensor
 """
+
 def conv_layer(input_tensor, 
                filter_height, 
                filter_width, 
                filters_depth, 
                stride,
                output_maps_count,
+               apply_batch_norm,
+               phase_train,
+               activation_func,
                enable_hist_summary):
   with tf.name_scope('conv'):
-    weights = tf.Variable(
-      tf.truncated_normal(
-        [
-          filter_height, 
-          filter_width, 
-          filters_depth, 
-          output_maps_count
-        ],
-        stddev=0.01,
-        name='random'),
-      name='weights')
-    bias = tf.Variable(tf.zeros([output_maps_count]), name='biases')
-    conv = tf.math.add(tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME'), bias, name='sum')
+    conv = convolution(input_tensor, filter_height, filter_width, filters_depth, stride, output_maps_count, enable_hist_summary)
+    batch_norm = batch_normalization(conv, output_maps_count, phase_train) if apply_batch_norm else conv
+    relu = activation(batch_norm, activation_func)
 
-    if enable_hist_summary:
-      tf.summary.histogram('weights', weights)
-      tf.summary.histogram('bias', bias)
-
-    return conv
+    return relu
 
 """
 Fully-connected layer.
 Args:
     input_tensor: Tensor, 4D BHWD input maps
-    input_units: integer, number of input units
-    hidden_units: integer, number of hidden units
+    n_inputs: integer, number of input
+    units: integer, number of units
 Return:
     output matrix
 """
-def fully_connected(input_tensor, 
-                    input_units, 
-                    hidden_units, 
-                    enable_hist_summary):
+def fc_layer(input_tensor, 
+              n_inputs, 
+              units, 
+              activation_func,
+              enable_hist_summary):
   with tf.name_scope('fc'):
-    weights = tf.Variable(
-      tf.truncated_normal(
-        [
-          input_units, 
-          hidden_units
-        ], 
-        stddev=0.01,
-        name='random'), 
-      name='weights')
-    bias = tf.Variable(tf.zeros([hidden_units]), name='biases')
-    fc = tf.math.add(tf.matmul(input_tensor, weights, name='mult'), bias, name='sum')
+    fc = fully_connected(input_tensor, n_inputs, units, enable_hist_summary)
+    relu = activation(fc, activation_func)
 
-    if enable_hist_summary:
-      tf.summary.histogram('weights', weights)
-      tf.summary.histogram('bias', bias)
+    return relu
 
-    return fc
 
-def flatten(input_tensor):
-  with tf.name_scope('flatten'):
-    [_, output_height, output_width, output_depth] = input_tensor.get_shape()
-    element_count = int(output_height * output_width * output_depth)
-    return tf.reshape(input_tensor, [-1, element_count])
+def regression_layer(input_tensor,
+                      n_inputs,
+                      enable_hist_summary):
+  with tf.name_scope('fc'):
+    return fully_connected(input_tensor, n_inputs, 1, enable_hist_summary)
 
 """Builds a model of the requested architecture compatible with the settings.
 
@@ -346,11 +380,11 @@ def create_conv_model(fingerprint_input, model_settings):
   flattened = tf.reshape(output_conv, [-1, element_count])
 
   # fc layer 1
-  fc_1 = fully_connected(flattened, element_count, model_settings['hidden_units'][0], model_settings['enable_hist_summary'])
+  fc_1 = fc_layer(flattened, element_count, model_settings['hidden_units'][0], model_settings['enable_hist_summary'])
   final_fc_relu = activation(fc_1, "relu")
 
   # regression 
-  estimator = fully_connected(final_fc_relu, int(final_fc_relu.shape[-1]), 1, model_settings['enable_hist_summary'])
+  estimator = fc_layer(final_fc_relu, int(final_fc_relu.shape[-1]), 1, model_settings['enable_hist_summary'])
   
   # log
   tf.summary.image('input', fingerprint, 1)
@@ -373,12 +407,13 @@ def create_slim_conv_model(fingerprint_input, model_settings):
     output_conv = conv_layer(output_conv, 
                     model_settings['filter_height'][i], 
                     model_settings['filter_width'][i], 
-                    int(output_conv.shape[-1]), 
+                    output_conv.shape[-1].value, 
                     model_settings['stride'][i],
                     model_settings['filter_count'][i],
+                    model_settings['apply_batch_norm'],
+                    phase_train,
+                    model_settings['activation'],
                     model_settings['enable_hist_summary'])
-    output_conv = batch_normalization(output_conv, model_settings['filter_count'][i], phase_train) if model_settings['apply_batch_norm'] else output_conv
-    output_conv = activation(output_conv, model_settings['activation'])
     output_conv = x_pooling(output_conv, model_settings['pooling'][i], [1, 2, 2, 1], [1, 2, 2, 1], 'SAME') if model_settings['pooling'][i] else output_conv
 
   # flattened 
@@ -386,14 +421,15 @@ def create_slim_conv_model(fingerprint_input, model_settings):
   element_count = int(output_height * output_width * output_depth)
   flattened = tf.reshape(output_conv, [-1, element_count])
 
-  # fc layers
+  # hidden layers
   output_fc = flattened
   for i in range(0, model_settings['fc_layers']):
-    fc_1 = fully_connected(output_fc, output_fc.shape[-1].value, model_settings['hidden_units'][i], model_settings['enable_hist_summary'])
-    output_fc = activation(fc_1, "relu")
+    output_fc = tf.layers.dense(output_fc, model_settings['hidden_units'][i], name='hidden', activation=get_activation_func(model_settings['activation']))
+    # output_fc = fc_layer(output_fc, output_fc.shape[-1].value, model_settings['hidden_units'][i], model_settings['activation'], model_settings['enable_hist_summary'])
 
   # regression 
-  estimator = fully_connected(output_fc, int(output_fc.shape[-1]), 1, model_settings['enable_hist_summary'])
+  estimator = tf.layers.dense(output_fc, 1, name='estimator')
+  # estimator = regression_layer(output_fc, output_fc.shape[-1].value, model_settings['enable_hist_summary'])
   
   # log
   tf.summary.image('input', fingerprint, 1)
