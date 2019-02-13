@@ -256,7 +256,7 @@ def main(argv):
 
       weights = np.append(weights, test_fingerprints.shape[0] / set_size)
       values = np.append(values, test_rmse)
-      test_writer.add_summary(testing_summary, training_steps_max + i/FLAGS.batch_size)
+      # test_writer.add_summary(testing_summary, training_steps_max + i/FLAGS.batch_size)
       tf.logging.info('i=%d: rmse = %.2f' % (i, test_rmse))
 
     weighted_rmse = np.dot(values, weights)
