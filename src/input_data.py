@@ -298,6 +298,7 @@ class AudioProcessor(object):
     # Data and scores will be populated and returned.
     data = np.zeros((sample_count*variations_count, self.fingerprint_size))
     scores = np.zeros((sample_count*variations_count, 1))
+    names = ["" for x in range(sample_count*variations_count)]
 
     # Use the processing graph created earlier to repeatedly to generate the
     # final output sample data we'll use in training.
@@ -319,16 +320,6 @@ class AudioProcessor(object):
       for j in xrange(0, variations_count):
         data[i + j - offset, :] = self.gen_feature(variations[j], self.input_processing_lib, sess)
         scores[i + j - offset] = original_score
+        names[i + j - offset] = original_sample['file']
 
-    return data, scores
-
-  def get_indexed_samples(self, qty, offset, mode, sess):
-    candidates, total = self.data_index[mode], self.set_size(mode)
-    sample_count = total if qty < 1 else max(1, min(qty, total - offset))
-    data = np.zeros((sample_count, self.fingerprint_size))
-   
-    for i in xrange(offset, offset + sample_count):
-      original_waveform = self.load_waveform(candidates[i]['file'], self.input_processing_lib, sess)
-      data[i - offset, :] = self.gen_feature(original_waveform, self.input_processing_lib, sess)
-
-    return data
+    return names, data, scores

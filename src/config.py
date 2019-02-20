@@ -8,8 +8,8 @@ from __future__ import print_function
 import argparse
 import json
 
-def save_configs(flags, out_dir):
-  with open(out_dir + '/' + 'configs.json', "w") as f:
+def save_configs(out_dir, flags):
+  with open(out_dir + '/' + 'config.json', "w") as f:
     json.dump(flags, f, indent=2)
 
 def read_config(config_path): 
@@ -23,38 +23,44 @@ def set_flags(configs={}):
   parser.add_argument(
       '--data_dir',
       type=str,
-      default=configs.get('data_dir', '../database/speech_dataset'),
+      default=configs.get(
+        'data_dir', 
+        '/home/rqa/renato/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/database/speech_dataset_expanded'),
       help=""" Where to download the speech training data to. """)
   parser.add_argument(
-      '--summaries_dir',
+      '--output_dir',
       type=str,
-      default=configs.get('summaries_dir', '../logs_test/summary'),
+      default=configs.get(
+        'output_dir', 
+        '/home/rqa/renato/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/logs_test'),
       help='Where to save summary logs for TensorBoard.')
-  parser.add_argument(
-      '--train_dir',
-      type=str,
-      default=configs.get('train_dir', '../logs_test/event'),
-      help='Directory to write event logs and checkpoint.')
-
+ 
 # config summary
   parser.add_argument(
       '--enable_hist_summary',
       type=str,
       default=configs.get('enable_hist_summary', True),
-      help='Directory to write event logs and checkpoint.')
+      help='Directory to write histogram summary.')
 
 # config profile
   parser.add_argument(
       '--enable_profile',
       type=str,
       default=configs.get('enable_profile', False),
-      help='Directory to write event logs and checkpoint.')
+      help='Directory to write profile results.')
+
+# checkpoint saving
+  parser.add_argument(
+      '--enable_checkpoint_save',
+      type=bool,
+      default=configs.get('enable_checkpoint_save', True),
+      help='Flag to enable/disable checkpoint saving.')
 
 # config Learning
   parser.add_argument(
       '--testing_percentage',
       type=int,
-      default=configs.get('testing_percentage', 50),
+      default=configs.get('testing_percentage', 70),
       help='What percentage of wavs to use as a test set.')
   parser.add_argument(
       '--validation_percentage',
@@ -65,11 +71,11 @@ def set_flags(configs={}):
       '--batch_size',
       type=int,
       default=configs.get('batch_size', 5),
-      help='How many items to radomly select to apply mini-batch train0')
+      help='How many items to radomly select to apply mini-batch train')
   parser.add_argument(
       '--training_steps',
       type=str,
-      default=configs.get('training_steps', [50,10]),
+      default=configs.get('training_steps', [5,1]),
       help='How many training loops to run')  
   parser.add_argument(
       '--learning_rate',
@@ -115,7 +121,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--feature',
       type=str,
-      default=configs.get('feature', 'mfcc'),
+      default=configs.get('feature', 'new_mfcc'),
       help='How feature use')
   parser.add_argument(
       '--dct_coefficient_count',
@@ -127,32 +133,32 @@ def set_flags(configs={}):
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default=configs.get('model_architecture', 'slim_conv'),
+      default=configs.get('model_architecture', 'conv'),
       help='What model architecture to use')
   parser.add_argument(
       '--conv_layers',
       type=int,
-      default=configs.get('conv_layers', 3),
+      default=configs.get('conv_layers', 4),
       help='How many convolutional layers to use')
   parser.add_argument(
       '--filter_width',
       type=list,
-      default=configs.get('filter_width', [3,5,7]),
+      default=configs.get('filter_width', [3,5,7,9]),
       help='What filter width to use')
   parser.add_argument(
       '--filter_height',
       type=list,
-      default=configs.get('filter_height', [3,5,7]),
+      default=configs.get('filter_height', [3,5,7,9]),
       help='What filter height to use')
   parser.add_argument(
       '--filter_count',
       type=list,
-      default=configs.get('filter_count', [5,5,5]),
+      default=configs.get('filter_count', [5,5,5,5]),
       help='What filter count to use')
   parser.add_argument(
       '--stride',
       type=list,
-      default=configs.get('stride', [2,2,2]),
+      default=configs.get('stride', [2,2,2,2]),
       help='What long stride to use')
   parser.add_argument(
       '--apply_batch_norm',
@@ -162,24 +168,24 @@ def set_flags(configs={}):
   parser.add_argument(
       '--pooling',
       type=list,
-      default=configs.get('pooling', ['','','']),
+      default=configs.get('pooling', ['','','','']),
       help='What pooling type to use.')
   parser.add_argument(
       '--activation',
       type=str,
-      default=configs.get('activation', 'relu'),
+      default=configs.get('activation', 'softplus'),
       help='What activation function type to use')
   
 # config FC
   parser.add_argument(
       '--fc_layers',
       type=int,
-      default=configs.get('fc_layers', 1),
+      default=configs.get('fc_layers', 2),
       help='Number of fully connected layers to use.')
   parser.add_argument(
       '--hidden_units',
       type=str,
-      default=configs.get('hidden_units', [50]),
+      default=configs.get('hidden_units', [25,25]),
       help='Number of units in hidden layers.')
 
   parser.add_argument(
@@ -192,11 +198,6 @@ def set_flags(configs={}):
       type=int,
       default=configs.get('eval_step_interval', 10),
       help='How often to evaluate the training results.')
-  parser.add_argument(
-      '--save_step_interval',
-      type=int,
-      default=configs.get('save_step_interval', 2000),
-      help='Save model checkpoint every save_steps.')
   parser.add_argument(
       '--start_checkpoint',
       type=str,

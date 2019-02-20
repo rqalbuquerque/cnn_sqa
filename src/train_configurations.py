@@ -5,7 +5,7 @@ import train
 import config
 
 if __name__ == '__main__':
-  configurations_dir = "../configurations"
+  configurations_dir = "/home/rqa/renato/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/configurations"
 
   if os.path.isdir(configurations_dir):
     os.chdir(configurations_dir)

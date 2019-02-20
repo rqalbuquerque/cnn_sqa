@@ -20,17 +20,16 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.client import timeline
 
-import statistics
 import input_data
 import models
 import config
 
-def create_log_path(log_dir, config_name=''):
+def create_output_path(output_dir, config_name=''):
   if config_name:
-    return log_dir + '/run-' + config_name
+    return output_dir + '/run-' + config_name
   else:
     now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    return log_dir + '/run-' + now
+    return output_dir + '/run-' + now
 
 def create_dir(new_dir): 
   if not os.path.exists(new_dir):
@@ -51,8 +50,8 @@ def main(argv):
 
   # Begin by making sure we have the training data we need.
   model_settings = models.prepare_model_settings(
-      FLAGS.input_processing_lib,
       FLAGS.enable_hist_summary,
+      FLAGS.input_processing_lib,
       FLAGS.sample_rate, 
       FLAGS.clip_duration_ms, 
       FLAGS.window_size_ms,
@@ -116,32 +115,32 @@ def main(argv):
 
   global_step = tf.train.get_or_create_global_step()
   increment_global_step = tf.assign(global_step, global_step + 1)
+  saver = tf.train.Saver(tf.global_variables())
 
   # Merge all the summaries and create file writers 
   merged_summaries = tf.summary.merge_all()
-  log_dir = create_log_path(FLAGS.summaries_dir, config_name)
-  train_writer = tf.summary.FileWriter(log_dir + '/train', sess.graph)
-  validation_writer = tf.summary.FileWriter(log_dir + '/validation')
-  weighted_validation = tf.summary.FileWriter(log_dir + '/weighted_validation')
+  output_dir = create_output_path(FLAGS.output_dir, config_name)
+
+  train_writer = tf.summary.FileWriter(output_dir + '/summary/train', sess.graph)
+  validation_writer = tf.summary.FileWriter(output_dir + '/summary/validation')
+  weighted_validation_writer = tf.summary.FileWriter(output_dir + '/summary/weighted_validation')
   
-  config.save_configs(FLAGS.__dict__, log_dir)
-
+  if FLAGS.enable_checkpoint_save:
+    checkpoint_dir = output_dir + '/checkpoint'
+    create_dir(checkpoint_dir)
+    
   if FLAGS.enable_profile:
-    profile_dir = FLAGS.summaries_dir + '/profile'
+    profile_dir = output_dir + '/profile'
     create_dir(profile_dir)
-
-  tf.global_variables_initializer().run()
-
-  start_step = 1
-  if FLAGS.start_checkpoint:
-    models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
-    start_step = global_step.eval(session=sess)
 
   if len(FLAGS.training_steps) != len(FLAGS.learning_rate):
     raise Exception(
         '--training_steps and --learning_rate must be equal length '
         'lists, but are %d and %d long instead' % (len(FLAGS.training_steps),
                                                    len(FLAGS.training_steps)))
+
+  tf.global_variables_initializer().run()
+  start_step = 1
 
   tf.logging.info('"***************** Training *****************')
   tf.logging.info('Training from step: %d ', start_step)
@@ -163,7 +162,7 @@ def main(argv):
         break
 
     # Pull the audio samples we'll use for training.
-    train_fingerprints, train_ground_truth = audio_processor.get_data(
+    _, train_fingerprints, train_ground_truth = audio_processor.get_data(
         FLAGS.batch_size, 0, 'training', sess)
 
     # Run the graph with this batch of training data.
@@ -204,7 +203,7 @@ def main(argv):
       values = np.array([], dtype=np.float32)
 
       for i in range(0, set_size, FLAGS.batch_size):
-        validation_fingerprints, validation_ground_truth = (
+        _, validation_fingerprints, validation_ground_truth = (
             audio_processor.get_data(FLAGS.batch_size, i, 'validation', sess))
 
         validation_summary, validation_rmse = sess.run(
@@ -226,7 +225,7 @@ def main(argv):
       weighted_rmse = np.dot(values, weights)
       weighted_rmse_summary = tf.Summary(value=[tf.Summary.Value(tag='rmse',
                                                      simple_value=weighted_rmse)])
-      weighted_validation.add_summary(weighted_rmse_summary, training_step + set_size/FLAGS.batch_size - 1)
+      weighted_validation_writer.add_summary(weighted_rmse_summary, training_step + set_size/FLAGS.batch_size - 1)
       tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
       tf.logging.info('***************** ********** *****************')
 
@@ -240,7 +239,7 @@ def main(argv):
     values = np.array([], dtype=np.float32)
     
     for i in range(0, set_size, FLAGS.batch_size):
-      test_fingerprints, test_ground_truth = audio_processor.get_data(
+      _, test_fingerprints, test_ground_truth = audio_processor.get_data(
           FLAGS.batch_size, i, 'testing', sess)
 
       testing_summary, test_rmse = sess.run(
@@ -263,9 +262,18 @@ def main(argv):
     tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
     tf.logging.info('***************** ********** *****************')
 
+  # Save the model
+  if FLAGS.enable_checkpoint_save:
+    FLAGS.start_checkpoint = os.path.join(checkpoint_dir, FLAGS.model_architecture + '.ckpt')
+    tf.logging.info('Saving to "%s-%d"', FLAGS.start_checkpoint, training_steps_max)
+    saver.save(sess, FLAGS.start_checkpoint, global_step=training_steps_max)
+    FLAGS.start_checkpoint += '-' + str(training_steps_max)
+
+  config.save_configs(output_dir, FLAGS.__dict__, )
+
   train_writer.close()
   validation_writer.close()
-  weighted_validation.close()
+  weighted_validation_writer.close()
   sess.close()
 
 if __name__ == '__main__':
