@@ -86,7 +86,7 @@ def activation(input_tensor, mode):
   if mode == "leaky_relu":
     return tf.nn.leaky_relu(input_tensor, alpha=0.2, name="leaky_relu")
   if mode == "elu":
-    return tf.nn.elu(input_tensor, alpha=0.2, name="elu")
+    return tf.nn.elu(input_tensor, name="elu")
   else:
     return tf.nn.relu(input_tensor, name="relu")
 
@@ -444,7 +444,7 @@ def create_slim_conv_model(fingerprint_input, model_settings):
   # hidden layers
   output_fc = flattened
   for i in range(0, model_settings['fc_layers']):
-    output_fc = tf.layers.dense(output_fc, model_settings['hidden_units'][i], activation=get_activation_func(model_settings['activation']), name='hidden')
+    output_fc = tf.layers.dense(output_fc, model_settings['hidden_units'][i], activation=get_activation_func(model_settings['activation']), name='hidden' + str(i))
     # output_fc = fc_layer(output_fc, output_fc.shape[-1].value, model_settings['hidden_units'][i], model_settings['activation'], model_settings['enable_hist_summary'])
 
   # regression 
