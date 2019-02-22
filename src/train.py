@@ -122,13 +122,9 @@ def main(argv):
   output_dir = create_output_path(FLAGS.output_dir, config_name)
 
   train_writer = tf.summary.FileWriter(output_dir + '/summary/train', sess.graph)
-  validation_writer = tf.summary.FileWriter(output_dir + '/summary/validation')
+  #validation_writer = tf.summary.FileWriter(output_dir + '/summary/validation')
   weighted_validation_writer = tf.summary.FileWriter(output_dir + '/summary/weighted_validation')
   
-  if FLAGS.enable_checkpoint_save:
-    checkpoint_dir = output_dir + '/checkpoint'
-    create_dir(checkpoint_dir)
-    
   if FLAGS.enable_profile:
     profile_dir = output_dir + '/profile'
     create_dir(profile_dir)
@@ -219,7 +215,7 @@ def main(argv):
 
         weights = np.append(weights, validation_fingerprints.shape[0] / set_size)
         values = np.append(values, validation_rmse)
-        validation_writer.add_summary(validation_summary, training_step + i/FLAGS.batch_size)
+        #validation_writer.add_summary(validation_summary, training_step + i/FLAGS.batch_size)
         tf.logging.info('i=%d: rmse = %.2f' % (i, validation_rmse))
 
       weighted_rmse = np.dot(values, weights)
@@ -264,7 +260,8 @@ def main(argv):
 
   # Save the model
   if FLAGS.enable_checkpoint_save:
-    FLAGS.start_checkpoint = os.path.join(checkpoint_dir, FLAGS.model_architecture + '.ckpt')
+    create_dir(output_dir + '/checkpoint')
+    FLAGS.start_checkpoint = os.path.join(output_dir + '/checkpoint', FLAGS.model_architecture + '.ckpt')
     tf.logging.info('Saving to "%s-%d"', FLAGS.start_checkpoint, training_steps_max)
     saver.save(sess, FLAGS.start_checkpoint, global_step=training_steps_max)
     FLAGS.start_checkpoint += '-' + str(training_steps_max)
@@ -272,7 +269,7 @@ def main(argv):
   config.save_configs(output_dir, FLAGS.__dict__, )
 
   train_writer.close()
-  validation_writer.close()
+  #validation_writer.close()
   weighted_validation_writer.close()
   sess.close()
 
