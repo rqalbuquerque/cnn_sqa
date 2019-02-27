@@ -167,29 +167,25 @@ class AudioProcessor(object):
     if model_settings['feature'] == 'spectrogram':
       frames_count = model_settings['spectrogram_length']
       coefficient_count = model_settings['dct_coefficient_count']
-      feature = tf.slice(
+      feat = tf.slice(
           spectrogram, [0,0,0], [-1,frames_count,coefficient_count])
     elif model_settings['feature'] == 'mfcc': 
-      feature = contrib_audio.mfcc(
+      feat = contrib_audio.mfcc(
           tf.abs(spectrogram),
           model_settings['sample_rate'],
           dct_coefficient_count=model_settings['dct_coefficient_count'])
     elif model_settings['feature'] == 'new_mfcc':
       abs_spec = tf.abs(spectrogram)
       linear_to_mel_weight_matrix = tf.contrib.signal.linear_to_mel_weight_matrix(
-        model_settings['dct_coefficient_count'], 
-        abs_spec.shape[-1].value, 
-        model_settings['sample_rate'], 
-        20.0,
-        4000.0)
+        model_settings['dct_coefficient_count'], abs_spec.shape[-1].value, model_settings['sample_rate'], 20.0, 4000.0)
       mel_spectrograms = tf.tensordot(
         abs_spec, linear_to_mel_weight_matrix, 1)
       mel_spectrograms.set_shape(abs_spec.shape[:-1].concatenate(
         linear_to_mel_weight_matrix.shape[-1:]))
       log_mel_spectrograms = tf.log(mel_spectrograms + 1e-6)
-      feature = tf.contrib.signal.mfccs_from_log_mel_spectrograms(
+      feat = tf.contrib.signal.mfccs_from_log_mel_spectrograms(
         log_mel_spectrograms)
-    return tf.transpose(feature, [0,2,1])
+    return tf.transpose(feat, [0,2,1])
 
   """Load wav and generates features using Librosa.
 
