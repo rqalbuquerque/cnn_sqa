@@ -248,24 +248,24 @@ class AudioProcessor(object):
         return feat.flatten()
 
   def load_waveform(self, filename, lib, sess):
-    waveforme = []
-
     if lib == 'librosa':
-      waveforme = self.load_by_librosa(filename)
+      return self.load_by_librosa(filename)
     elif lib == 'tensorflow':
-      waveforme = self.load_by_tensorflow(filename, sess)
-
-    return waveforme
+      return self.load_by_tensorflow(filename, sess)
 
   def gen_feature(self, waveforme, lib, sess):
-    feature = []
-
     if lib == 'librosa':
-      feature = self.feature_by_librosa(waveforme)
+      return self.feature_by_librosa(waveforme)
     elif lib == 'tensorflow':
-      feature = self.feature_by_tensorflow(waveforme, sess)
+      return self.feature_by_tensorflow(waveforme, sess)
 
-    return feature
+  def load_feature_by_mat(self, fileName):
+    mat_dict = scipy.io.loadmat(fileName)
+    data = mat_dict['data']['feature'][0][0].flatten()
+    data = data[0:self.fingerprint_size]
+    data = np.pad(data, (0, self.fingerprint_size - len(data)), 'constant')
+    return data
+
 
   """Gather samples from the data set, applying transformations as needed.
 
@@ -288,7 +288,7 @@ class AudioProcessor(object):
   """
   # Pick one of the partitions to choose samples from.
 
-  def get_data(self, qty, offset, mode, sess):
+  def get_data_by_wav(self, qty, offset, mode, sess):
     candidates, total = self.data_index[mode], self.set_size(mode)
     sample_count = total if qty < 1 else max(1, min(qty, total - offset))
     
@@ -309,7 +309,6 @@ class AudioProcessor(object):
 
       # load waveform
       original_waveform = self.load_waveform(original_sample['file'], self.input_processing_lib, sess)
-      original_score = original_sample['score']
 
       # Generates data augmentation variations
       variations = (original_waveform,)
@@ -319,7 +318,37 @@ class AudioProcessor(object):
       # Produce the output feature
       for j in xrange(0, variations_count):
         data[i + j - offset, :] = self.gen_feature(variations[j], self.input_processing_lib, sess)
-        scores[i + j - offset] = original_score
+        scores[i + j - offset] = original_sample['score']
         names[i + j - offset] = original_sample['file']
 
     return names, data, scores
+
+
+  def get_data_by_mat(self, qty, offset, mode):
+    candidates, total = self.data_index[mode], self.set_size(mode)
+    sample_count = total if qty < 1 else max(1, min(qty, total - offset))
+
+    # Data and scores will be populated and returned.
+    data = np.zeros((sample_count, self.fingerprint_size))
+    scores = np.zeros((sample_count, 1))
+    names = ["" for x in range(sample_count)]
+
+    # Use the processing graph created earlier to repeatedly to generate the
+    # final output sample data we'll use in training.
+    for i in xrange(offset, offset + sample_count):
+      # Pick which audio sample to use.
+      sample_index = np.random.randint(total) if (mode == 'training') else i
+      original_sample = candidates[sample_index]
+
+      # load waveform
+      data[i - offset, :] = self.load_feature_by_mat(original_sample['file'])
+      scores[i - offset] = original_sample['score']
+      names[i - offset] = original_sample['file']
+
+    return names, data, scores
+
+  def get_data(self, qty, offset, mode, sess):
+    if self.input_processing_lib == 'scipy':
+      return self.get_data_by_mat(qty, offset, mode)
+    else:
+      return self.get_data_by_wav(qty, offset, mode, sess)

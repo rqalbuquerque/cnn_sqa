@@ -199,8 +199,7 @@ def main(argv):
       values = np.array([], dtype=np.float32)
 
       for i in range(0, set_size, FLAGS.batch_size):
-        _, validation_fingerprints, validation_ground_truth = (
-            audio_processor.get_data(FLAGS.batch_size, i, 'validation', sess))
+        _, validation_fingerprints, validation_ground_truth = audio_processor.get_data(FLAGS.batch_size, i, 'validation', sess)
 
         validation_summary, validation_rmse = sess.run(
             [
