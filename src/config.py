@@ -39,7 +39,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--enable_hist_summary',
       type=str,
-      default=configs.get('enable_hist_summary', True),
+      default=configs.get('enable_hist_summary', False),
       help='Directory to write histogram summary.')
 
 # config profile
@@ -53,10 +53,15 @@ def set_flags(configs={}):
   parser.add_argument(
       '--enable_checkpoint_save',
       type=bool,
-      default=configs.get('enable_checkpoint_save', True),
+      default=configs.get('enable_checkpoint_save', False),
       help='Flag to enable/disable checkpoint saving.')
 
 # config Learning
+  parser.add_argument(
+      '--optimizer',
+      type=str,
+      default=configs.get('optimizer', 'adam'),
+      help='What optimizer to use.')
   parser.add_argument(
       '--testing_percentage',
       type=int,
@@ -65,7 +70,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--validation_percentage',
       type=int,
-      default=configs.get('validation_percentage', 1),
+      default=configs.get('validation_percentage', 5),
       help='What percentage of wavs to use as a validation set.')
   parser.add_argument(
       '--batch_size',
@@ -75,7 +80,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--training_steps',
       type=str,
-      default=configs.get('training_steps', [5,1]),
+      default=configs.get('training_steps', [50,10]),
       help='How many training loops to run')  
   parser.add_argument(
       '--learning_rate',
@@ -173,7 +178,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--activation',
       type=str,
-      default=configs.get('activation', 'softplus'),
+      default=configs.get('activation', 'relu'),
       help='What activation function type to use')
   
 # config FC

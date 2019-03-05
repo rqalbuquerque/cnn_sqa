@@ -108,10 +108,19 @@ def main(argv):
 
   # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
-    learning_rate_input = tf.placeholder(
-        tf.float32, [], name='learning_rate_input')
-    train_step = tf.train.GradientDescentOptimizer(
-        learning_rate_input).minimize(root_mean_squared_error)
+    learning_rate_input = tf.placeholder(tf.float32, [], name='learning_rate_input')
+    
+    if FLAGS.optimizer == 'momentum':
+      train_step = tf.train.MomentumOptimizer(
+        learning_rate=learning_rate_input, momentum=0.9, use_nesterov=True).minimize(root_mean_squared_error)
+    elif FLAGS.optimizer == 'rms_prop':
+      train_step = tf.train.RMSPropOptimizer(
+        learning_rate=learning_rate_input, momentum=0.9, decay=0.9, epsilon=1e-10).minimize(root_mean_squared_error)
+    elif FLAGS.optimizer == 'adam':
+      train_step = tf.train.AdamOptimizer(learning_rate=learning_rate_input).minimize(root_mean_squared_error)
+    elif FLAGS.optimizer == 'gradient_descent':
+      train_step = tf.train.GradientDescentOptimizer(
+            learning_rate_input).minimize(root_mean_squared_error)
 
   global_step = tf.train.get_or_create_global_step()
   increment_global_step = tf.assign(global_step, global_step + 1)
