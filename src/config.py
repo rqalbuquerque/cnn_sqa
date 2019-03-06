@@ -176,10 +176,20 @@ def set_flags(configs={}):
       default=configs.get('pooling', ['','','','']),
       help='What pooling type to use.')
   parser.add_argument(
+      '--apply_dropout',
+      type=bool,
+      default=configs.get('apply_dropout', True),
+      help='Decide to apply dropout')
+  parser.add_argument(
       '--activation',
       type=str,
       default=configs.get('activation', 'relu'),
-      help='What activation function type to use')
+      help='What activation function type to use.')
+  parser.add_argument(
+      '--apply_regularization',
+      type=bool,
+      default=configs.get('apply_regularization', False),
+      help='Decide to apply dropout')
   parser.add_argument(
       '--kernel_regularizer',
       type=str,

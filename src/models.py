@@ -39,6 +39,7 @@ def prepare_model_settings(enable_hist_summary,
                            activation,
                            kernel_regularizer,
                            pooling,
+                           apply_dropout,
                            fc_layers,
                            hidden_units):
 
@@ -66,6 +67,7 @@ def prepare_model_settings(enable_hist_summary,
       'filter_count': filter_count,
       'stride': stride,
       'pooling': pooling,
+      'apply_dropout': apply_dropout,
       'apply_batch_norm': apply_batch_norm,
       'activation': activation,
       'kernel_regularizer': kernel_regularizer,
@@ -406,6 +408,7 @@ def create_slim_conv_model(fingerprint_input, params):
   batch_norm_layer = partial(batch_normalization, phase_train=phase_train)
   activation_layer = partial(apply_activation, mode=params['activation'])
   pooling_layer = partial(apply_pooling, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+  dropout_layer = partial(tf.layers.dropout, rate=0.5, training=phase_train)
 
   output_conv = fingerprint
   for i in range(0, params['conv_layers']):
@@ -418,7 +421,8 @@ def create_slim_conv_model(fingerprint_input, params):
       params['filter_count'][i])
     batch_norm = batch_norm_layer(conv, params['filter_count'][i]) if params['apply_batch_norm'] else conv
     activation = activation_layer(batch_norm)
-    output_conv = pooling_layer(activation, params['pooling'][i]) if params['pooling'][i] else activation
+    dropout = dropout_layer(activation) if params['apply_dropout'] else activation
+    output_conv = pooling_layer(dropout, params['pooling'][i]) if params['pooling'][i] else dropout
 
   # flattened 
   [_, output_height, output_width, output_depth] = output_conv.get_shape()

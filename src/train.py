@@ -82,6 +82,7 @@ def main(argv):
       FLAGS.activation,
       FLAGS.kernel_regularizer,
       FLAGS.pooling,
+      FLAGS.apply_dropout,
       FLAGS.fc_layers,
       FLAGS.hidden_units)
 
@@ -114,7 +115,7 @@ def main(argv):
     control_dependencies = [checks]
 
   # Define loss 
-  reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES) if FLAGS.kernel_regularizer else []
+  reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES) if FLAGS.apply_regularization else []
   rmse = tf.sqrt(tf.reduce_mean(tf.squared_difference(gt_input, estimator)))
   loss = tf.add_n([rmse] + reg_losses, name='loss')
   tf.summary.scalar('rmse', rmse)
