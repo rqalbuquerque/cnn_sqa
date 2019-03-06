@@ -138,7 +138,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default=configs.get('model_architecture', 'conv'),
+      default=configs.get('model_architecture', 'slim_conv'),
       help='What model architecture to use')
   parser.add_argument(
       '--conv_layers',
@@ -180,6 +180,11 @@ def set_flags(configs={}):
       type=str,
       default=configs.get('activation', 'relu'),
       help='What activation function type to use')
+  parser.add_argument(
+      '--kernel_regularizer',
+      type=str,
+      default=configs.get('kernel_regularizer', 'l2'),
+      help='What kernel regularizer function to use')
   
 # config FC
   parser.add_argument(

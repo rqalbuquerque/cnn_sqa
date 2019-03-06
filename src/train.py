@@ -47,7 +47,6 @@ def get_optimizer(learning_rate, optimizer):
   else:
     train_step = tf.train.GradientDescentOptimizer(
           learning_rate)
-    
   return train_step
 
 def main(argv):
@@ -81,6 +80,7 @@ def main(argv):
       FLAGS.stride,
       FLAGS.apply_batch_norm,
       FLAGS.activation,
+      FLAGS.kernel_regularizer,
       FLAGS.pooling,
       FLAGS.fc_layers,
       FLAGS.hidden_units)
@@ -100,9 +100,7 @@ def main(argv):
   # input
   fingerprint_input = tf.placeholder(
       tf.float32, [None, model_settings['fingerprint_size']], name='fingerprint_input')
-
-  ground_truth_input = tf.placeholder(
-    tf.float32, [None, 1], name='groundtruth_input')
+  gt_input = tf.placeholder(tf.float32, [None, 1], name='groundtruth_input')
   
   # model
   estimator, phase_train = models.create_model(
@@ -116,16 +114,16 @@ def main(argv):
     control_dependencies = [checks]
 
   # Define loss 
-  with tf.name_scope('loss'):
-    root_mean_squared_error = tf.sqrt(
-      tf.reduce_mean(tf.squared_difference(ground_truth_input, estimator)), name='rmse')
-  tf.summary.scalar('rmse', root_mean_squared_error)
+  reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES) if FLAGS.kernel_regularizer else []
+  rmse = tf.sqrt(tf.reduce_mean(tf.squared_difference(gt_input, estimator)))
+  loss = tf.add_n([rmse] + reg_losses, name='loss')
+  tf.summary.scalar('rmse', rmse)
 
   # Create the back propagation and training evaluation machinery in the graph.
   with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
     learning_rate_input = tf.placeholder(tf.float32, [], name='learning_rate_input')
     optimizer = get_optimizer(learning_rate_input, FLAGS.optimizer)
-    train_step = optimizer.minimize(root_mean_squared_error)
+    train_step = optimizer.minimize(loss)
 
   global_step = tf.train.get_or_create_global_step()
   increment_global_step = tf.assign(global_step, global_step + 1)
@@ -179,13 +177,13 @@ def main(argv):
     train_summary, train_rmse, _, _ = sess.run(
         [
             merged_summaries, 
-            root_mean_squared_error, 
+            loss, 
             train_step,
             increment_global_step
         ],
         feed_dict={
             fingerprint_input: train_fingerprints,
-            ground_truth_input: train_ground_truth,
+            gt_input: train_ground_truth,
             learning_rate_input: learning_rate_value,
             phase_train: True
         },
@@ -218,11 +216,11 @@ def main(argv):
         validation_summary, validation_rmse = sess.run(
             [
               merged_summaries, 
-              root_mean_squared_error
+              loss
             ],
             feed_dict={
               fingerprint_input: validation_fingerprints,
-              ground_truth_input: validation_ground_truth,
+              gt_input: validation_ground_truth,
               phase_train: False
             })
 
@@ -254,11 +252,11 @@ def main(argv):
       testing_summary, test_rmse = sess.run(
           [
             merged_summaries, 
-            root_mean_squared_error
+            loss
           ],
           feed_dict={
               fingerprint_input: test_fingerprints,
-              ground_truth_input: test_ground_truth,
+              gt_input: test_ground_truth,
               phase_train: False
           })
 
