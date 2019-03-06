@@ -100,7 +100,7 @@ def get_activation_func(mode):
     return tf.nn.softplus 
   return tf.nn.relu
 
-def get_kernel_regularizer(mode, scale=0.001):
+def get_kernel_regularizer(mode, scale=0.0001):
   if mode == "l1":
     return tf.contrib.layers.l1_regularizer(scale)
   elif mode == "l2":
