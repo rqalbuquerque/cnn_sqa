@@ -258,7 +258,7 @@ class AudioProcessor(object):
 
   def load_feature_by_mat(self, fileName):
     mat_dict = scipy.io.loadmat(fileName)
-    data = abs(mat_dict[self.feature_name])
+    data = mat_dict[self.feature_name]
     data = data[0:self.n_coeffs, 0:self.n_frames]
     data = np.pad(data, ((0, self.n_coeffs - data.shape[0]),(0, self.n_frames - data.shape[1])), 'constant')
     return data.flatten()
