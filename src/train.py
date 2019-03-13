@@ -72,7 +72,7 @@ def main(argv):
       FLAGS.window_stride_ms, 
       FLAGS.data_aug_algorithms,
       FLAGS.feature,
-      FLAGS.dct_coefficient_count,
+      FLAGS.n_coeffs,
       FLAGS.conv_layers,
       FLAGS.filter_width,
       FLAGS.filter_height,
@@ -81,7 +81,6 @@ def main(argv):
       FLAGS.apply_batch_norm,
       FLAGS.activation,
       FLAGS.kernel_regularizer,
-      FLAGS.pooling,
       FLAGS.apply_dropout,
       FLAGS.fc_layers,
       FLAGS.hidden_units)
@@ -105,7 +104,7 @@ def main(argv):
   
   # model
   estimator, phase_train = models.create_model(
-      fingerprint_input, model_settings, FLAGS.model_architecture, is_training=True)
+      fingerprint_input, model_settings, FLAGS.model_architecture)
 
   # Optionally we can add runtime checks to spot when NaNs or other symptoms of
   # numerical errors start occurring during training.

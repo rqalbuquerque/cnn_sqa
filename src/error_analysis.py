@@ -1,4 +1,4 @@
-"""Training definitions for speech quality assessment.
+"""Error generation of validation set.
 
 """
 from __future__ import absolute_import
@@ -41,7 +41,7 @@ def main(argv):
       FLAGS.window_stride_ms, 
       FLAGS.data_aug_algorithms,
       FLAGS.feature,
-      FLAGS.dct_coefficient_count,
+      FLAGS.n_coeffs,
       FLAGS.conv_layers,
       FLAGS.filter_width,
       FLAGS.filter_height,
@@ -69,7 +69,7 @@ def main(argv):
   
   # model
   estimator, phase_train = models.create_model(
-      fingerprint_input, model_settings, FLAGS.model_architecture, is_training=True)
+      fingerprint_input, model_settings, FLAGS.model_architecture)
   
   # Merge all the summaries and create file writers 
   merged_summaries = tf.summary.merge_all()
@@ -86,7 +86,8 @@ def main(argv):
   scores = []
   errors = []
 
-  output_dir = config_dir + '/analysis'
+  analysis_dir = config_dir + '/analysis'
+  output_dir = analysis_dir + '/error'
   output_folder = create_dir(output_dir)
 
   with open(output_dir + '/validation_errors.csv', 'wb') as csvfile:

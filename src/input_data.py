@@ -115,6 +115,9 @@ class AudioProcessor(object):
     self.input_processing_lib = model_settings['input_processing_lib']
     self.fingerprint_size = model_settings['fingerprint_size']
     self.data_aug_algorithms = model_settings['data_aug_algorithms']
+    self.feature_name = model_settings['feature']
+    self.n_coeffs = model_settings['n_coeffs']
+    self.n_frames = model_settings['n_frames']
 
   def prepare_processing_input(self, model_settings):
     if model_settings['input_processing_lib'] == 'tensorflow':
@@ -166,18 +169,18 @@ class AudioProcessor(object):
   def prepare_feature_graph(self, spectrogram, model_settings):
     if model_settings['feature'] == 'spectrogram':
       frames_count = model_settings['spectrogram_length']
-      coefficient_count = model_settings['dct_coefficient_count']
+      coefficient_count = model_settings['n_coeffs']
       feat = tf.slice(
           spectrogram, [0,0,0], [-1,frames_count,coefficient_count])
     elif model_settings['feature'] == 'mfcc': 
       feat = contrib_audio.mfcc(
           tf.abs(spectrogram),
           model_settings['sample_rate'],
-          dct_coefficient_count=model_settings['dct_coefficient_count'])
+          n_coeffs=model_settings['n_coeffs'])
     elif model_settings['feature'] == 'new_mfcc':
       abs_spec = tf.abs(spectrogram)
       linear_to_mel_weight_matrix = tf.contrib.signal.linear_to_mel_weight_matrix(
-        model_settings['dct_coefficient_count'], abs_spec.shape[-1].value, model_settings['sample_rate'], 20.0, 4000.0)
+        model_settings['n_coeffs'], abs_spec.shape[-1].value, model_settings['sample_rate'], 20.0, 4000.0)
       mel_spectrograms = tf.tensordot(
         abs_spec, linear_to_mel_weight_matrix, 1)
       mel_spectrograms.set_shape(abs_spec.shape[:-1].concatenate(
@@ -196,10 +199,8 @@ class AudioProcessor(object):
     self.duration = model_settings['desired_samples']/self.sr
 
   def prepare_processing_feature_librosa(self, model_settings):
-    self.feature = model_settings['feature']
     self.hop_length = model_settings['window_stride_samples'] 
     self.n_fft = model_settings['window_size_samples'] 
-    self.n_coeffs = model_settings['dct_coefficient_count']
     self.window = scipy.signal.windows.hann
 
   # Tensorflow func definitions
@@ -219,26 +220,26 @@ class AudioProcessor(object):
 
   def feature_by_librosa(self, data):
     with tf.name_scope('feature'):
-      if self.feature == 'amplitude':
+      if self.feature_name == 'amplitude':
         feat = np.abs(librosa.stft(
           y=data, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window))
         return feat[0:self.n_coeffs,2:-2].flatten()
-      elif self.feature == 'amplitude_to_db':
+      elif self.feature_name == 'amplitude_to_db':
         feat = np.abs(librosa.stft(
           y=data, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window))
         feat = librosa.amplitude_to_db(feat, ref=np.max)
         return feat[0:self.n_coeffs,2:-2].flatten()
-      elif self.feature == 'mel_spectrogram_power_1':
+      elif self.feature_name == 'mel_spectrogram_power_1':
         feat = librosa.power_to_db(
           librosa.feature.melspectrogram(
             y=data, sr=self.sr, n_fft=self.n_fft, hop_length=self.hop_length, n_mels=self.hop_length, fmax=8000, power=1), ref=np.max)
         return feat[0:self.n_coeffs,2:-2].flatten()
-      elif self.feature == 'mel_spectrogram_power_2':
+      elif self.feature_name == 'mel_spectrogram_power_2':
         feat = librosa.power_to_db(
           librosa.feature.melspectrogram(
             y=data, sr=self.sr, n_fft=self.n_fft, hop_length=self.hop_length, n_mels=self.hop_length, fmax=8000, power=2), ref=np.max)
         return feat[0:self.n_coeffs,2:-2].flatten()
-      elif self.feature == 'mfcc':
+      elif self.feature_name == 'mfcc':
         feat = librosa.feature.mfcc(
           y=data, sr=self.sr, hop_length=self.hop_length, n_fft=self.n_fft, n_mfcc=self.n_coeffs)
         return feat.flatten()
@@ -257,10 +258,10 @@ class AudioProcessor(object):
 
   def load_feature_by_mat(self, fileName):
     mat_dict = scipy.io.loadmat(fileName)
-    data = mat_dict['data']['feature'][0][0].flatten()
-    data = data[0:self.fingerprint_size]
-    data = np.pad(data, (0, self.fingerprint_size - len(data)), 'constant')
-    return data
+    data = abs(mat_dict[self.feature_name])
+    data = data[0:self.n_coeffs, 0:self.n_frames]
+    data = np.pad(data, ((0, self.n_coeffs - data.shape[0]),(0, self.n_frames - data.shape[1])), 'constant')
+    return data.flatten()
 
 
   """Gather samples from the data set, applying transformations as needed.
@@ -319,6 +320,9 @@ class AudioProcessor(object):
 
     return names, data, scores
 
+  def get_data_by_path(self, filepath, sess):
+    waveform = self.load_waveform(filepath, self.input_processing_lib, sess)
+    return self.gen_feature(waveform, self.input_processing_lib, sess)
 
   def get_data_by_mat(self, qty, offset, mode):
     candidates, total = self.data_index[mode], self.set_size(mode)

@@ -25,7 +25,7 @@ def set_flags(configs={}):
       type=str,
       default=configs.get(
         'data_dir', 
-        '/home/rqa/renato/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/database/speech_dataset_expanded'),
+        '/home/rqa/renato/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/database/matlab_features/vad'),
       help=""" Where to download the speech training data to. """)
   parser.add_argument(
       '--output_dir',
@@ -53,14 +53,14 @@ def set_flags(configs={}):
   parser.add_argument(
       '--enable_checkpoint_save',
       type=bool,
-      default=configs.get('enable_checkpoint_save', False),
+      default=configs.get('enable_checkpoint_save', True),
       help='Flag to enable/disable checkpoint saving.')
 
 # config Learning
   parser.add_argument(
       '--optimizer',
       type=str,
-      default=configs.get('optimizer', 'adam'),
+      default=configs.get('optimizer', 'gradient_descent'),
       help='What optimizer to use.')
   parser.add_argument(
       '--testing_percentage',
@@ -80,19 +80,19 @@ def set_flags(configs={}):
   parser.add_argument(
       '--training_steps',
       type=str,
-      default=configs.get('training_steps', [50,10]),
+      default=configs.get('training_steps', [20,10,10,10,10]),
       help='How many training loops to run')  
   parser.add_argument(
       '--learning_rate',
       type=list,
-      default=configs.get('learning_rate', [0.01,0.001]),
+      default=configs.get('learning_rate', [0.01,0.007,0.005,0.003,0.001]),
       help='How large a learning rate to use when training.')
 
 # config Signal
   parser.add_argument(
       '--input_processing_lib',
       type=str,
-      default=configs.get('input_processing_lib', 'tensorflow'),
+      default=configs.get('input_processing_lib', 'scipy'),
       help='Processing library of audio samples')
   parser.add_argument(
       '--sample_rate',
@@ -116,22 +116,22 @@ def set_flags(configs={}):
   parser.add_argument(
       '--window_size_ms',
       type=float,
-      default=configs.get('window_size_ms', 32.0),
+      default=configs.get('window_size_ms', 25.6),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--window_stride_ms',
       type=float,
-      default=configs.get('window_stride_ms', 8.0),
+      default=configs.get('window_stride_ms', 10.0),
       help='How long each spectrogram timeslice is')
   parser.add_argument(
       '--feature',
       type=str,
-      default=configs.get('feature', 'new_mfcc'),
+      default=configs.get('feature', 'pncc_40_coefficients'),
       help='How feature use')
   parser.add_argument(
-      '--dct_coefficient_count',
+      '--n_coeffs',
       type=int,
-      default=configs.get('dct_coefficient_count', 40),
+      default=configs.get('n_coeffs', 40),
       help='How many bins to use for the feature fingerprint')
 
 # config CNN
@@ -143,38 +143,33 @@ def set_flags(configs={}):
   parser.add_argument(
       '--conv_layers',
       type=int,
-      default=configs.get('conv_layers', 4),
+      default=configs.get('conv_layers', 5),
       help='How many convolutional layers to use')
   parser.add_argument(
       '--filter_width',
       type=list,
-      default=configs.get('filter_width', [3,5,7,9]),
+      default=configs.get('filter_width', [2,3,5,7,9]),
       help='What filter width to use')
   parser.add_argument(
       '--filter_height',
       type=list,
-      default=configs.get('filter_height', [3,5,7,9]),
+      default=configs.get('filter_height', [2,3,5,7,9]),
       help='What filter height to use')
   parser.add_argument(
       '--filter_count',
       type=list,
-      default=configs.get('filter_count', [5,5,5,5]),
+      default=configs.get('filter_count', [5,5,5,5,5]),
       help='What filter count to use')
   parser.add_argument(
       '--stride',
       type=list,
-      default=configs.get('stride', [2,2,2,2]),
+      default=configs.get('stride', [1,2,2,2,2]),
       help='What long stride to use')
   parser.add_argument(
       '--apply_batch_norm',
       type=bool,
       default=configs.get('apply_batch_norm', True),
       help='Decide to apply batch normalization')
-  parser.add_argument(
-      '--pooling',
-      type=list,
-      default=configs.get('pooling', ['','','','']),
-      help='What pooling type to use.')
   parser.add_argument(
       '--apply_dropout',
       type=bool,
@@ -193,7 +188,7 @@ def set_flags(configs={}):
   parser.add_argument(
       '--kernel_regularizer',
       type=str,
-      default=configs.get('kernel_regularizer', 'l2'),
+      default=configs.get('kernel_regularizer', ''),
       help='What kernel regularizer function to use')
   
 # config FC

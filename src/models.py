@@ -16,7 +16,7 @@ Args:
   clip_duration_ms: Length of each audio clip to be analyzed.
   window_size_ms: Duration of frequency analysis window.
   window_stride_ms: How far to move in time between frequency windows.
-  dct_coefficient_count: Number of frequency bins to use for analysis.
+  n_coeffs: Number of frequency bins to use for analysis.
 
 Returns:
   Dictionary containing common settings.
@@ -29,7 +29,7 @@ def prepare_model_settings(enable_hist_summary,
                            window_stride_ms,
                            data_aug_algorithms,
                            feature,
-                           dct_coefficient_count,
+                           n_coeffs,
                            conv_layers,
                            filter_width,
                            filter_height,
@@ -38,7 +38,6 @@ def prepare_model_settings(enable_hist_summary,
                            apply_batch_norm,
                            activation,
                            kernel_regularizer,
-                           pooling,
                            apply_dropout,
                            fc_layers,
                            hidden_units):
@@ -46,8 +45,8 @@ def prepare_model_settings(enable_hist_summary,
   desired_samples = int(sample_rate * clip_duration_ms / 1000.0)
   window_size_samples = int(sample_rate * window_size_ms / 1000.0)
   window_stride_samples = int(sample_rate * window_stride_ms / 1000.0)
-  spectrogram_length = 1 + int((desired_samples-window_size_samples) / window_stride_samples)
-  fingerprint_size = dct_coefficient_count * spectrogram_length
+  n_frames = 1 + int((desired_samples-window_size_samples) / window_stride_samples)
+  fingerprint_size = n_coeffs * n_frames
   
   return {
       'enable_hist_summary': enable_hist_summary,
@@ -57,16 +56,15 @@ def prepare_model_settings(enable_hist_summary,
       'fingerprint_size': fingerprint_size,
       'input_processing_lib': input_processing_lib,
       'sample_rate': sample_rate,
-      'spectrogram_length': spectrogram_length,
+      'n_frames': n_frames,
       'data_aug_algorithms': data_aug_algorithms,
       'feature': feature,
-      'dct_coefficient_count': dct_coefficient_count,
+      'n_coeffs': n_coeffs,
       'conv_layers': conv_layers,
       'filter_width': filter_width,
       'filter_height': filter_height,
       'filter_count': filter_count,
       'stride': stride,
-      'pooling': pooling,
       'apply_dropout': apply_dropout,
       'apply_batch_norm': apply_batch_norm,
       'activation': activation,
@@ -252,7 +250,6 @@ Args:
   fingerprint_input: TensorFlow node that will output audio feature vectors.
   params: Dictionary of information about the model.
   model_architecture: String specifying which kind of model to create.
-  is_training: Whether the model is going to be used for training.
   runtime_settings: Dictionary of information about the runtime.
 
 Returns:
@@ -265,7 +262,6 @@ Raises:
 def create_model(fingerprint_input, 
                  params, 
                  model_architecture,
-                 is_training, 
                  runtime_settings=None):
 
   if model_architecture == 'conv':
@@ -309,120 +305,55 @@ Here's the layout of the graph:
 Args:
   fingerprint_input: TensorFlow node that will output audio feature vectors.
   params: Dictionary of information about the model.
-  is_training: Whether the model is going to be used for training.
 
 Returns:
   TensorFlow node outputting logits results, and optionally a dropout
   placeholder.
 """
 def create_conv_model(fingerprint_input, params):
-  dct_coefficient_count = params['dct_coefficient_count']
-  spectrogram_length = params['spectrogram_length']
-  fingerprint = tf.reshape(fingerprint_input, [-1, dct_coefficient_count, spectrogram_length, 1])
-  phase_train = tf.placeholder(tf.bool, name='phase_train')
-
-  # conv 1
-  conv1 = conv_layer(fingerprint, 
-                  fingerprint.shape[-1].value, 
-                  params['filter_height'][0], 
-                  params['filter_width'][0], 
-                  params['stride'][0],
-                  params['filter_count'][0],
-                  params['apply_batch_norm'],
-                  phase_train,
-                  params['activation'],
-                  params['enable_hist_summary'])
-  
-  if params['pooling'][0]:
-    conv1 = apply_pooling(conv1, params['pooling'][0], [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
-
-  # conv 2
-  conv2 = conv_layer(conv1, 
-                  conv1.shape[-1].value, 
-                  params['filter_height'][1], 
-                  params['filter_width'][1], 
-                  params['stride'][1],
-                  params['filter_count'][1],
-                  params['apply_batch_norm'],
-                  phase_train,
-                  params['activation'],
-                  params['enable_hist_summary'])
-  
-  if params['pooling'][1]:
-    conv2 = apply_pooling(conv2, params['pooling'][1], [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
-
-  # conv 2
-  conv3 = conv_layer(conv2, 
-                  conv2.shape[-1].value, 
-                  params['filter_height'][2], 
-                  params['filter_width'][2], 
-                  params['stride'][2],
-                  params['filter_count'][2],
-                  params['apply_batch_norm'],
-                  phase_train,
-                  params['activation'],
-                  params['enable_hist_summary'])
-  
-  if params['pooling'][2]:
-    conv3 = apply_pooling(conv3, params['pooling'][2], [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
-
-  # conv 2
-  conv4 = conv_layer(conv3, 
-                  conv3.shape[-1].value, 
-                  params['filter_height'][3], 
-                  params['filter_width'][3], 
-                  params['stride'][3],
-                  params['filter_count'][3],
-                  params['apply_batch_norm'],
-                  phase_train,
-                  params['activation'],
-                  params['enable_hist_summary'])
-  
-  if params['pooling'][3]:
-    conv4 = apply_pooling(conv4, params['pooling'][3], [1, 2, 2, 1], [1, 2, 2, 1], 'SAME')
-
-
-  # flattened 
-  [_, output_height, output_width, output_depth] = conv4.get_shape()
-  element_count = int(output_height * output_width * output_depth)
-  flattened = tf.reshape(conv4, [-1, element_count])
-
-  # hidden layers
-  fc1 = tf.layers.dense(flattened, params['hidden_units'][0], activation=get_activation_func(params['activation']))
-  fc2 = tf.layers.dense(fc1, params['hidden_units'][1], activation=get_activation_func(params['activation']))
-
-  # regression 
-  estimator = tf.layers.dense(fc2, 1)
-  
-  # log
-  tf.summary.image('input', fingerprint, 1)
-
-  return estimator, phase_train
-
-
-def create_slim_conv_model(fingerprint_input, params):
-  fingerprint = tf.reshape(fingerprint_input, [-1, params['dct_coefficient_count'], params['spectrogram_length'], 1])
+  fingerprint = tf.reshape(fingerprint_input, 
+    [-1, params['n_coeffs'], params['n_frames'], 1])
   phase_train = tf.placeholder(tf.bool, name='phase_train')
 
   conv_layer = partial(conv_2d, enable_hist_summary=params['enable_hist_summary'])
   batch_norm_layer = partial(batch_normalization, phase_train=phase_train)
   activation_layer = partial(apply_activation, mode=params['activation'])
-  pooling_layer = partial(apply_pooling, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
-  dropout_layer = partial(tf.layers.dropout, rate=0.5, training=phase_train)
+  dropout_layer = partial(tf.layers.dropout, rate=0.5, training=phase_train, name='dropout')
 
-  output_conv = fingerprint
-  for i in range(0, params['conv_layers']):
-    conv = conv_layer(
-      output_conv, 
-      params['filter_height'][i], 
-      params['filter_width'][i], 
-      output_conv.shape[-1].value, 
-      params['stride'][i], 
-      params['filter_count'][i])
-    batch_norm = batch_norm_layer(conv, params['filter_count'][i]) if params['apply_batch_norm'] else conv
-    activation = activation_layer(batch_norm)
-    dropout = dropout_layer(activation) if params['apply_dropout'] else activation
-    output_conv = pooling_layer(dropout, params['pooling'][i]) if params['pooling'][i] else dropout
+  conv = conv_layer(
+    fingerprint, params['filter_height'][0], params['filter_width'][0], 
+    fingerprint.shape[-1].value, params['stride'][0], params['filter_count'][0])
+  batch_norm = batch_norm_layer(conv, params['filter_count'][0]) if params['apply_batch_norm'] else conv
+  activation = activation_layer(batch_norm)
+  dropout = dropout_layer(activation) if params['apply_dropout'] else activation
+
+  conv_1 = conv_layer(
+    dropout, params['filter_height'][1], params['filter_width'][1], 
+    dropout.shape[-1].value, params['stride'][1], params['filter_count'][1])
+  batch_norm_1 = batch_norm_layer(conv_1, params['filter_count'][1]) if params['apply_batch_norm'] else conv_1
+  activation_1 = activation_layer(batch_norm_1)
+  dropout_1 = dropout_layer(activation_1) if params['apply_dropout'] else activation_1
+
+  conv_2 = conv_layer(
+    dropout_1, params['filter_height'][2], params['filter_width'][2], 
+    dropout_1.shape[-1].value, params['stride'][2], params['filter_count'][2])
+  batch_norm_2 = batch_norm_layer(conv_2, params['filter_count'][2]) if params['apply_batch_norm'] else conv_2
+  activation_2 = activation_layer(batch_norm_2)
+  dropout_2 = dropout_layer(activation_2) if params['apply_dropout'] else activation_2
+
+  conv_3 = conv_layer(
+    dropout_2, params['filter_height'][3], params['filter_width'][3], 
+    dropout_2.shape[-1].value, params['stride'][3], params['filter_count'][3])
+  batch_norm_3 = batch_norm_layer(conv_3, params['filter_count'][3]) if params['apply_batch_norm'] else conv_3
+  activation_3 = activation_layer(batch_norm_3)
+  dropout_3 = dropout_layer(activation_3) if params['apply_dropout'] else activation_3
+
+  conv_4 = conv_layer(
+    dropout_3, params['filter_height'][4], params['filter_width'][4], 
+    dropout_3.shape[-1].value, params['stride'][4], params['filter_count'][4])
+  batch_norm_4 = batch_norm_layer(conv_4, params['filter_count'][4]) if params['apply_batch_norm'] else conv_4
+  activation_4 = activation_layer(batch_norm_4)
+  dropout_4 = dropout_layer(activation_4) if params['apply_dropout'] else activation_4
 
   # flattened 
   [_, output_height, output_width, output_depth] = output_conv.get_shape()
@@ -434,8 +365,56 @@ def create_slim_conv_model(fingerprint_input, params):
     activation=get_activation_func(params['activation']),
     kernel_regularizer=get_kernel_regularizer(params['kernel_regularizer']))
 
-  fc1 = dense_layer(flattened, params['hidden_units'][0], name='hidden1')
-  fc2 = dense_layer(fc1, params['hidden_units'][1], name='hidden2')
+  fc1 = dense_layer(flattened, params['hidden_units'][0], name='dense1')
+  fc2 = dense_layer(fc1, params['hidden_units'][1], name='dense2')
+
+  # regression 
+  estimator = tf.layers.dense(fc2, 1, name='estimator')
+  
+  # log
+  tf.summary.image('input', fingerprint, 1)
+
+  return estimator, phase_train
+
+
+def create_slim_conv_model(fingerprint_input, params):
+  print(params['n_coeffs'])
+  print(params['n_frames'])
+  fingerprint = tf.reshape(fingerprint_input, 
+    [-1, params['n_coeffs'], params['n_frames'], 1])
+  phase_train = tf.placeholder(tf.bool, name='phase_train')
+
+  conv_layer = partial(conv_2d, enable_hist_summary=params['enable_hist_summary'])
+  batch_norm_layer = partial(batch_normalization, phase_train=phase_train)
+  activation_layer = partial(apply_activation, mode=params['activation'])
+  dropout_layer = partial(tf.layers.dropout, rate=0.5, training=phase_train, name='dropout')
+
+  convs = ()
+
+  output_conv = fingerprint
+  for i in range(0, params['conv_layers']):
+    convs += (conv_layer(
+      output_conv, params['filter_height'][i], params['filter_width'][i], 
+      output_conv.shape[-1].value, params['stride'][i], params['filter_count'][i]),)
+    batch_norm = batch_norm_layer(convs[i], params['filter_count'][i]) if params['apply_batch_norm'] else convs[i]
+    activation = activation_layer(batch_norm)
+    output_conv = dropout_layer(activation) if params['apply_dropout'] else activation
+
+  for op in convs:
+    tf.add_to_collection("conv_ops", op)
+
+  # flattened 
+  [_, output_height, output_width, output_depth] = output_conv.get_shape()
+  element_count = int(output_height * output_width * output_depth)
+  flattened = tf.reshape(output_conv, [-1, element_count])
+
+  dense_layer = partial(
+    tf.layers.dense, 
+    activation=get_activation_func(params['activation']),
+    kernel_regularizer=get_kernel_regularizer(params['kernel_regularizer']))
+
+  fc1 = dense_layer(flattened, params['hidden_units'][0], name='dense1')
+  fc2 = dense_layer(fc1, params['hidden_units'][1], name='dense2')
 
   # regression 
   estimator = tf.layers.dense(fc2, 1, name='estimator')
