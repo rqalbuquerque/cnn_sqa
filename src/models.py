@@ -378,8 +378,6 @@ def create_conv_model(fingerprint_input, params):
 
 
 def create_slim_conv_model(fingerprint_input, params):
-  print(params['n_coeffs'])
-  print(params['n_frames'])
   fingerprint = tf.reshape(fingerprint_input, 
     [-1, params['n_coeffs'], params['n_frames'], 1])
   phase_train = tf.placeholder(tf.bool, name='phase_train')

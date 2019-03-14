@@ -136,18 +136,18 @@ class AudioProcessor(object):
   creates multiple placeholder inputs, and one output:
 
     - wav_filename_placeholder: Filename of the WAV to load.
-    - waveforme_placeholder: Waveform of the WAV to loaded.
+    - waveform_placeholder: Waveform of the WAV to loaded.
     - feature: Calculated feature
   """
   def prepare_processing_input_graph(self, model_settings):
     with tf.name_scope('input'):
       self.wav_filename_placeholder = tf.placeholder(tf.string, [], 'file_name')
-      self.waveforme = self.prepare_load_wav_graph(self.wav_filename_placeholder, model_settings)
+      self.waveform = self.prepare_load_wav_graph(self.wav_filename_placeholder, model_settings)
 
   def prepare_processing_feature_graph(self, model_settings):
     with tf.name_scope('feature'):
-      self.waveforme_placeholder = tf.placeholder(tf.float32, [model_settings['desired_samples'], 1], 'waveform')
-      self.spectrogram = self.prepare_spectrogram_graph(self.waveforme_placeholder, model_settings)
+      self.waveform_placeholder = tf.placeholder(tf.float32, [model_settings['desired_samples'], 1], 'waveform')
+      self.spectrogram = self.prepare_spectrogram_graph(self.waveform_placeholder, model_settings)
       self.feature = self.prepare_feature_graph(self.spectrogram, model_settings)
 
   def prepare_load_wav_graph(self, wav_filename_placeholder, model_settings):
@@ -158,9 +158,9 @@ class AudioProcessor(object):
         desired_samples=model_settings['desired_samples'])
     return wav_decoder.audio
 
-  def prepare_spectrogram_graph(self, waveforme, model_settings):
+  def prepare_spectrogram_graph(self, waveform, model_settings):
     spectrogram = contrib_audio.audio_spectrogram(
-        waveforme, 
+        waveform, 
         window_size=model_settings['window_size_samples'], 
         stride=model_settings['window_stride_samples'], 
         magnitude_squared=True)
@@ -196,7 +196,7 @@ class AudioProcessor(object):
   """
   def prepare_processing_input_librosa(self, model_settings):
     self.sr = model_settings['sample_rate']
-    self.duration = model_settings['desired_samples']/self.sr
+    self.duration = model_settings['clip_duration_ms']/1000 #seconds
 
   def prepare_processing_feature_librosa(self, model_settings):
     self.hop_length = model_settings['window_stride_samples'] 
@@ -206,16 +206,16 @@ class AudioProcessor(object):
   # Tensorflow func definitions
   def load_by_tensorflow(self, filename, sess):
     return sess.run(
-      self.waveforme, feed_dict={ self.wav_filename_placeholder: filename })
+      self.waveform, feed_dict={ self.wav_filename_placeholder: filename })
 
-  def feature_by_tensorflow(self, waveforme, sess):
+  def feature_by_tensorflow(self, waveform, sess):
     return sess.run(
-      self.feature, feed_dict={ self.waveforme_placeholder: waveforme }).flatten()
+      self.feature, feed_dict={ self.waveform_placeholder: waveform }).flatten()
 
   # Librosa func definitions
   def load_by_librosa(self, filename):
     with tf.name_scope('input'):
-      data, sr = librosa.load(filename, sr=self.sr, duration=self.duration)
+      data, _ = librosa.load(filename, sr=self.sr, duration=self.duration)
       return data
 
   def feature_by_librosa(self, data):
@@ -250,11 +250,11 @@ class AudioProcessor(object):
     elif lib == 'tensorflow':
       return self.load_by_tensorflow(filename, sess)
 
-  def gen_feature(self, waveforme, lib, sess):
+  def gen_feature(self, waveform, lib, sess):
     if lib == 'librosa':
-      return self.feature_by_librosa(waveforme)
+      return self.feature_by_librosa(waveform)
     elif lib == 'tensorflow':
-      return self.feature_by_tensorflow(waveforme, sess)
+      return self.feature_by_tensorflow(waveform, sess)
 
   def load_feature_by_mat(self, fileName):
     mat_dict = scipy.io.loadmat(fileName)
