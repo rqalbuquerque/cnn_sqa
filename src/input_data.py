@@ -86,22 +86,22 @@ class AudioProcessor(object):
   def prepare_data_index(self, data_dir, validation_percentage, testing_percentage):
     # Make sure the shuffling.
     self.data_index = {'validation': [], 'testing': [], 'training': []}
-    # Get all subfolders
-    database = [x[0] for x in os.walk(data_dir)]
-    database = database[1:] if len(database) > 1 else database
-    # Look through all the subfolders
-    for folder in database:
-      scores_path = os.path.join(folder, '*scores*.txt')
-      scores_file = gfile.Glob(scores_path)[0]
-      # Interates over file to get file names and score
-      with open(scores_file) as file:
+    # get all score files
+    score_paths = []
+    for dirpath, _, filenames in os.walk(data_dir):
+      for filename in [f for f in filenames if f.endswith("scores.txt")]:
+        score_paths.append(dirpath + '/' + filename)
+    # set index by file name
+    for score_path in score_paths:
+      prefix = os.path.dirname(score_path)
+      with open(score_path) as file:
         for line in file.readlines():
           info = line.split(' ')
-          wav_path = folder + '/' + info[0]
+          wav_path = prefix + '/' + info[0]
           score = float(info[1])
           set_index = which_set(wav_path, validation_percentage, testing_percentage)
           self.data_index[set_index].append({'score': score, 'file': wav_path})
-    # Make sure the ordering is random.
+    # shuffle
     for set_index in ['validation', 'testing', 'training']:
       random.shuffle(self.data_index[set_index])
 
@@ -181,13 +181,10 @@ class AudioProcessor(object):
       abs_spec = tf.abs(spectrogram)
       linear_to_mel_weight_matrix = tf.contrib.signal.linear_to_mel_weight_matrix(
         model_settings['n_coeffs'], abs_spec.shape[-1].value, model_settings['sample_rate'], 20.0, 4000.0)
-      mel_spectrograms = tf.tensordot(
-        abs_spec, linear_to_mel_weight_matrix, 1)
-      mel_spectrograms.set_shape(abs_spec.shape[:-1].concatenate(
-        linear_to_mel_weight_matrix.shape[-1:]))
+      mel_spectrograms = tf.tensordot(abs_spec, linear_to_mel_weight_matrix, 1)
+      mel_spectrograms.set_shape(abs_spec.shape[:-1].concatenate(linear_to_mel_weight_matrix.shape[-1:]))
       log_mel_spectrograms = tf.log(mel_spectrograms + 1e-6)
-      feat = tf.contrib.signal.mfccs_from_log_mel_spectrograms(
-        log_mel_spectrograms)
+      feat = tf.contrib.signal.mfccs_from_log_mel_spectrograms(log_mel_spectrograms)
     return tf.transpose(feat, [0,2,1])
 
   """Load wav and generates features using Librosa.
