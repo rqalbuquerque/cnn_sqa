@@ -119,7 +119,7 @@ def main(argv):
   loss = tf.add_n([rmse] + reg_losses, name='loss')
   tf.summary.scalar('rmse', rmse)
 
-  # Create the back propagation and training evaluation machinery in the graph.
+  # Create the back-propagation and training evaluation machinery in the graph.
   with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
     learning_rate_input = tf.placeholder(tf.float32, [], name='learning_rate_input')
     optimizer = get_optimizer(learning_rate_input, FLAGS.optimizer)
@@ -190,8 +190,7 @@ def main(argv):
         options=options,
         run_metadata=run_metadata)
 
-    tf.logging.info('step #%d: rate %f, rmse %f' %
-                    (training_step, learning_rate_value, train_rmse))
+    tf.logging.info('step #%d: rate %f, rmse %f' %(training_step, learning_rate_value, train_rmse))
 
     if (training_step % FLAGS.summary_step_interval) == 0:
       train_writer.add_summary(train_summary, training_step)
@@ -227,12 +226,11 @@ def main(argv):
         weights = np.append(weights, validation_fingerprints.shape[0] / set_size)
         values = np.append(values, validation_rmse)
         #validation_writer.add_summary(validation_summary, training_step + i/FLAGS.batch_size)
-        tf.logging.info('i=%d: rmse = %.2f' % (i, validation_rmse))
+        # tf.logging.info('i=%d: rmse = %.2f' % (i, validation_rmse))
 
       weighted_rmse = np.dot(values, weights)
-      weighted_rmse_summary = tf.Summary(value=[tf.Summary.Value(tag='rmse',
-                                                     simple_value=weighted_rmse)])
-      weighted_validation_writer.add_summary(weighted_rmse_summary, training_step + set_size/FLAGS.batch_size - 1)
+      weighted_rmse_summary = tf.Summary(value=[tf.Summary.Value(tag='rmse',simple_value=weighted_rmse)])
+      weighted_validation_writer.add_summary(weighted_rmse_summary, training_step)
       tf.logging.info('weighted rmse = %.2f (N=%d)' % (weighted_rmse, set_size))
       tf.logging.info('***************** ********** *****************')
 

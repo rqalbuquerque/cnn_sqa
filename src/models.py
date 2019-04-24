@@ -424,15 +424,12 @@ def create_slim_conv_model(fingerprint_input, params):
 
   output_conv = fingerprint
   for i in range(0, params['conv_layers']):
-    convs += (conv_layer(
+    conv = (conv_layer(
       output_conv, params['filter_height'][i], params['filter_width'][i], 
       output_conv.shape[-1].value, params['stride'][i], params['filter_count'][i]),)
-    batch_norm = batch_norm_layer(convs[i], params['filter_count'][i]) if params['apply_batch_norm'] else convs[i]
+    batch_norm = batch_norm_layer(conv, params['filter_count'][i]) if params['apply_batch_norm'] else conv
     activation = activation_layer(batch_norm)
     output_conv = dropout_layer(activation) if params['apply_dropout'] else activation
-
-  for op in convs:
-    tf.add_to_collection("conv_ops", op)
 
   # flattened 
   [_, output_height, output_width, output_depth] = output_conv.get_shape()
