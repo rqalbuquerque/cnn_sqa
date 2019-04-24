@@ -335,7 +335,7 @@ def create_conv_model(fingerprint_input, params):
       params['stride'][0], 
       params['filter_count'][0]
     )
-    batch_norm_0 = batch_norm_layer(conv_0, params['filter_count'][0]) if params['apply_batch_norm'] else convs[0]
+    batch_norm_0 = batch_norm_layer(conv_0, params['filter_count'][0]) if params['apply_batch_norm'] else conv_0
     activation_0 = activation_layer(batch_norm_0)
     dropout_0 = dropout_layer(activation_0) if params['apply_dropout'] else activation_0
 
@@ -349,7 +349,7 @@ def create_conv_model(fingerprint_input, params):
       params['stride'][1], 
       params['filter_count'][1]
     )
-    batch_norm_1 = batch_norm_layer(conv_1, params['filter_count'][1]) if params['apply_batch_norm'] else convs[1]
+    batch_norm_1 = batch_norm_layer(conv_1, params['filter_count'][1]) if params['apply_batch_norm'] else conv_1
     activation_1 = activation_layer(batch_norm_1)
     dropout_1 = dropout_layer(activation_1) if params['apply_dropout'] else activation_1
 
@@ -363,7 +363,7 @@ def create_conv_model(fingerprint_input, params):
       params['stride'][2], 
       params['filter_count'][2]
     )
-    batch_norm_2 = batch_norm_layer(conv_2, params['filter_count'][2]) if params['apply_batch_norm'] else convs[2]
+    batch_norm_2 = batch_norm_layer(conv_2, params['filter_count'][2]) if params['apply_batch_norm'] else conv_2
     activation_2 = activation_layer(batch_norm_2)
     dropout_2 = dropout_layer(activation_2) if params['apply_dropout'] else activation_2
 
@@ -377,7 +377,7 @@ def create_conv_model(fingerprint_input, params):
       params['stride'][3], 
       params['filter_count'][3]
     )
-    batch_norm_3 = batch_norm_layer(conv_3, params['filter_count'][3]) if params['apply_batch_norm'] else convs[3]
+    batch_norm_3 = batch_norm_layer(conv_3, params['filter_count'][3]) if params['apply_batch_norm'] else conv_3
     activation_3 = activation_layer(batch_norm_3)
     dropout_3 = dropout_layer(activation_3) if params['apply_dropout'] else activation_3
 
@@ -391,7 +391,7 @@ def create_conv_model(fingerprint_input, params):
       params['stride'][4], 
       params['filter_count'][4]
     )
-    batch_norm_4 = batch_norm_layer(conv_4, params['filter_count'][4]) if params['apply_batch_norm'] else convs[4]
+    batch_norm_4 = batch_norm_layer(conv_4, params['filter_count'][4]) if params['apply_batch_norm'] else conv_4
     activation_4 = activation_layer(batch_norm_4)
     dropout_4 = dropout_layer(activation_4) if params['apply_dropout'] else activation_4
 
@@ -413,20 +413,28 @@ def create_conv_model(fingerprint_input, params):
   return estimator, phase_train
 
 def create_slim_conv_model(fingerprint_input, params):
-  fingerprint = tf.reshape(fingerprint_input, 
-    [-1, params['n_coeffs'], params['n_frames'], 1])
+  fingerprint = tf.reshape(fingerprint_input, [-1, params['n_coeffs'], params['n_frames'], 1])
   phase_train = tf.placeholder(tf.bool, name='phase_train')
 
   conv_layer = partial(conv_2d, enable_hist_summary=params['enable_hist_summary'])
   batch_norm_layer = partial(batch_normalization, phase_train=phase_train)
   activation_layer = partial(apply_activation, mode=params['activation'])
   dropout_layer = partial(tf.layers.dropout, rate=0.5, training=phase_train, name='dropout')
+  dense_layer = partial(
+    tf.layers.dense, 
+    activation=get_activation_func(params['activation']),
+    kernel_regularizer=get_kernel_regularizer(params['kernel_regularizer'])
+  )
 
   output_conv = fingerprint
   for i in range(0, params['conv_layers']):
-    conv = (conv_layer(
-      output_conv, params['filter_height'][i], params['filter_width'][i], 
-      output_conv.shape[-1].value, params['stride'][i], params['filter_count'][i]),)
+    conv = conv_layer(
+      output_conv, 
+      params['filter_height'][i], 
+      params['filter_width'][i], 
+      output_conv.shape[-1].value, 
+      params['stride'][i], 
+      params['filter_count'][i])
     batch_norm = batch_norm_layer(conv, params['filter_count'][i]) if params['apply_batch_norm'] else conv
     activation = activation_layer(batch_norm)
     output_conv = dropout_layer(activation) if params['apply_dropout'] else activation
@@ -436,11 +444,7 @@ def create_slim_conv_model(fingerprint_input, params):
   element_count = int(output_height * output_width * output_depth)
   flattened = tf.reshape(output_conv, [-1, element_count])
 
-  dense_layer = partial(
-    tf.layers.dense, 
-    activation=get_activation_func(params['activation']),
-    kernel_regularizer=get_kernel_regularizer(params['kernel_regularizer']))
-
+  # dense
   fc1 = dense_layer(flattened, params['hidden_units'][0], name='dense1')
   fc2 = dense_layer(fc1, params['hidden_units'][1], name='dense2')
 
