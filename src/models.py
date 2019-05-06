@@ -329,85 +329,79 @@ def create_conv_model(fingerprint_input, params):
   )
 
   # c0
-  if params['conv_layers'] > 0:
-    with tf.name_scope('conv_0'):
-      conv_0 = conv_layer(
-        fingerprint, 
-        params['filter_height'][0], 
-        params['filter_width'][0], 
-        fingerprint.shape[-1].value, 
-        params['stride'][0], 
-        params['filter_count'][0]
-      )
-      batch_norm_0 = batch_norm_layer(conv_0, params['filter_count'][0]) if params['apply_batch_norm'] else conv_0
-      activation_0 = activation_layer(batch_norm_0)
-      dropout_0 = dropout_layer(activation_0) if params['apply_dropout'] else activation_0
+  with tf.name_scope('conv_0'):
+    conv_0 = conv_layer(
+      fingerprint, 
+      params['filter_height'][0], 
+      params['filter_width'][0], 
+      fingerprint.shape[-1].value, 
+      params['stride'][0], 
+      params['filter_count'][0]
+    )
+    batch_norm_0 = batch_norm_layer(conv_0, params['filter_count'][0]) if params['apply_batch_norm'] else conv_0
+    activation_0 = activation_layer(batch_norm_0)
+    dropout_0 = dropout_layer(activation_0) if params['apply_dropout'] else activation_0
 
   # c1
-  if params['conv_layers'] > 1:
-    with tf.name_scope('conv_1'):
-      conv_1 = conv_layer(
-        dropout_0, 
-        params['filter_height'][1], 
-        params['filter_width'][1], 
-        dropout_0.shape[-1].value, 
-        params['stride'][1], 
-        params['filter_count'][1]
-      )
-      batch_norm_1 = batch_norm_layer(conv_1, params['filter_count'][1]) if params['apply_batch_norm'] else conv_1
-      activation_1 = activation_layer(batch_norm_1)
-      dropout_1 = dropout_layer(activation_1) if params['apply_dropout'] else activation_1
+  with tf.name_scope('conv_1'):
+    conv_1 = conv_layer(
+      dropout_0, 
+      params['filter_height'][1], 
+      params['filter_width'][1], 
+      dropout_0.shape[-1].value, 
+      params['stride'][1], 
+      params['filter_count'][1]
+    )
+    batch_norm_1 = batch_norm_layer(conv_1, params['filter_count'][1]) if params['apply_batch_norm'] else conv_1
+    activation_1 = activation_layer(batch_norm_1)
+    dropout_1 = dropout_layer(activation_1) if params['apply_dropout'] else activation_1
 
   # c2
-  if params['conv_layers'] > 2:
-    with tf.name_scope('conv_2'):
-      conv_2 = conv_layer(
-        dropout_1, 
-        params['filter_height'][2], 
-        params['filter_width'][2], 
-        dropout_1.shape[-1].value, 
-        params['stride'][2], 
-        params['filter_count'][2]
-      )
-      batch_norm_2 = batch_norm_layer(conv_2, params['filter_count'][2]) if params['apply_batch_norm'] else conv_2
-      activation_2 = activation_layer(batch_norm_2)
-      dropout_2 = dropout_layer(activation_2) if params['apply_dropout'] else activation_2
+  with tf.name_scope('conv_2'):
+    conv_2 = conv_layer(
+      dropout_1, 
+      params['filter_height'][2], 
+      params['filter_width'][2], 
+      dropout_1.shape[-1].value, 
+      params['stride'][2], 
+      params['filter_count'][2]
+    )
+    batch_norm_2 = batch_norm_layer(conv_2, params['filter_count'][2]) if params['apply_batch_norm'] else conv_2
+    activation_2 = activation_layer(batch_norm_2)
+    dropout_2 = dropout_layer(activation_2) if params['apply_dropout'] else activation_2
 
   # c3
-  if params['conv_layers'] > 3:
-    with tf.name_scope('conv_3'):
-      conv_3 = conv_layer(
-        dropout_2, 
-        params['filter_height'][3], 
-        params['filter_width'][3], 
-        dropout_2.shape[-1].value, 
-        params['stride'][3], 
-        params['filter_count'][3]
-      )
-      batch_norm_3 = batch_norm_layer(conv_3, params['filter_count'][3]) if params['apply_batch_norm'] else conv_3
-      activation_3 = activation_layer(batch_norm_3)
-      dropout_3 = dropout_layer(activation_3) if params['apply_dropout'] else activation_3
+  with tf.name_scope('conv_3'):
+    conv_3 = conv_layer(
+      dropout_2, 
+      params['filter_height'][3], 
+      params['filter_width'][3], 
+      dropout_2.shape[-1].value, 
+      params['stride'][3], 
+      params['filter_count'][3]
+    )
+    batch_norm_3 = batch_norm_layer(conv_3, params['filter_count'][3]) if params['apply_batch_norm'] else conv_3
+    activation_3 = activation_layer(batch_norm_3)
+    dropout_3 = dropout_layer(activation_3) if params['apply_dropout'] else activation_3
 
   # c4
-  if params['conv_layers'] > 4:
-    with tf.name_scope('conv_4'):
-      conv_4 = conv_layer(
-        dropout_3, 
-        params['filter_height'][4], 
-        params['filter_width'][4], 
-        dropout_3.shape[-1].value, 
-        params['stride'][4], 
-        params['filter_count'][4]
-      )
-      batch_norm_4 = batch_norm_layer(conv_4, params['filter_count'][4]) if params['apply_batch_norm'] else conv_4
-      activation_4 = activation_layer(batch_norm_4)
-      dropout_4 = dropout_layer(activation_4) if params['apply_dropout'] else activation_4
+  with tf.name_scope('conv_4'):
+    conv_4 = conv_layer(
+      dropout_3, 
+      params['filter_height'][4], 
+      params['filter_width'][4], 
+      dropout_3.shape[-1].value, 
+      params['stride'][4], 
+      params['filter_count'][4]
+    )
+    batch_norm_4 = batch_norm_layer(conv_4, params['filter_count'][4]) if params['apply_batch_norm'] else conv_4
+    activation_4 = activation_layer(batch_norm_4)
+    dropout_4 = dropout_layer(activation_4) if params['apply_dropout'] else activation_4
 
   # flattened 
-  output_conv = eval('dropout_' + str(params['conv_layers']-1))
-  [_, output_height, output_width, output_depth] = output_conv.get_shape()
+  [_, output_height, output_width, output_depth] = dropout_4.get_shape()
   element_count = int(output_height * output_width * output_depth)
-  flattened = tf.reshape(output_conv, [-1, element_count])
+  flattened = tf.reshape(dropout_4, [-1, element_count])
 
   # dense
   fc1 = dense_layer(flattened, params['hidden_units'][0], name='dense_0')

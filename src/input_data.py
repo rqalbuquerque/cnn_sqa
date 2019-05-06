@@ -317,10 +317,6 @@ class AudioProcessor(object):
 
     return names, data, scores
 
-  def get_data_by_path(self, filepath, sess):
-    waveform = self.load_waveform(filepath, self.input_processing_lib, sess)
-    return self.gen_feature(waveform, self.input_processing_lib, sess)
-
   def get_data_by_mat(self, qty, offset, mode):
     candidates, total = self.data_index[mode], self.set_size(mode)
     sample_count = total if qty < 1 else max(1, min(qty, total - offset))
@@ -343,6 +339,10 @@ class AudioProcessor(object):
       names[i - offset] = original_sample['file']
 
     return names, data, scores
+
+  def get_data_by_path(self, filepath, sess):
+    waveform = self.load_waveform(filepath, self.input_processing_lib, sess)
+    return self.gen_feature(waveform, self.input_processing_lib, sess)
 
   def get_data(self, qty, offset, mode, sess):
     if self.input_processing_lib == 'scipy':

@@ -49,7 +49,8 @@ def main(argv):
       FLAGS.stride,
       FLAGS.apply_batch_norm,
       FLAGS.activation,
-      FLAGS.pooling,
+      FLAGS.kernel_regularizer,
+      FLAGS.apply_dropout,
       FLAGS.fc_layers,
       FLAGS.hidden_units)
 
@@ -88,13 +89,13 @@ def main(argv):
 
   analysis_dir = config_dir + '/analysis'
   output_dir = analysis_dir + '/error'
-  output_folder = create_dir(output_dir)
+  create_dir(output_dir)
 
   with open(output_dir + '/validation_errors.csv', 'wb') as csvfile:
     fieldnames = ['Name', 'GT', 'Score', 'Error']
     csv_writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
     set_size = audio_processor.set_size('validation')
+
     for i in range(0, set_size, FLAGS.batch_size):
       validation_names, validation_fingerprints, validation_ground_truth = (
           audio_processor.get_data(FLAGS.batch_size, i, 'validation', sess))
@@ -109,7 +110,7 @@ def main(argv):
             phase_train: False
           })
 
-      names += [os.path.basename(x) for x in validation_names]
+      names += validation_names
       gts += validation_ground_truth.flatten().tolist()
       scores += validation_scores.flatten().tolist()
       errors += (validation_ground_truth-validation_scores).flatten().tolist()
