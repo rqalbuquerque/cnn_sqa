@@ -9,18 +9,6 @@ import tensorflow as tf
 from six.moves import xrange
 from functools import partial
 
-"""Calculates common settings needed for all models.
-
-Args:
-  sample_rate: Number of audio samples per second.
-  clip_duration_ms: Length of each audio clip to be analyzed.
-  window_size_ms: Duration of frequency analysis window.
-  window_stride_ms: How far to move in time between frequency windows.
-  n_coeffs: Number of frequency bins to use for analysis.
-
-Returns:
-  Dictionary containing common settings.
-"""
 def prepare_model_settings(enable_hist_summary,
                            input_processing_lib,
                            sample_rate, 
@@ -41,6 +29,18 @@ def prepare_model_settings(enable_hist_summary,
                            apply_dropout,
                            fc_layers,
                            hidden_units):
+  """Calculates common settings needed for all models.
+
+  Args:
+    sample_rate: Number of audio samples per second.
+    clip_duration_ms: Length of each audio clip to be analyzed.
+    window_size_ms: Duration of frequency analysis window.
+    window_stride_ms: How far to move in time between frequency windows.
+    n_coeffs: Number of frequency bins to use for analysis.
+
+  Returns:
+    Dictionary containing common settings.
+  """
 
   desired_samples = int(sample_rate * clip_duration_ms / 1000.0)
   window_size_samples = int(sample_rate * window_size_ms / 1000.0)
@@ -73,13 +73,13 @@ def prepare_model_settings(enable_hist_summary,
       'hidden_units': hidden_units
   }
 
-"""Utility function to centralize checkpoint restoration.
-
-Args:
-  sess: TensorFlow session.
-  start_checkpoint: Path to saved checkpoint on disk.
-"""
 def load_variables_from_checkpoint(sess, start_checkpoint):
+  """Utility function to centralize checkpoint restoration.
+
+  Args:
+    sess: TensorFlow session.
+    start_checkpoint: Path to saved checkpoint on disk.
+  """
   saver = tf.train.Saver(tf.global_variables())
   saver.restore(sess, start_checkpoint)
 
@@ -107,35 +107,38 @@ def get_kernel_regularizer(mode, scale=0.0001):
     return tf.contrib.layers.l1_l2_regularizer(scale)
   return None
 
-"""Utility function to add pooling to the graph.
-
-Args:
-  input_tensor: input tensor graph.
-  type:         pooling type.
-  ksize:        window size.
-  strides:      stride size.
-  padding:      padding algorithm.
-
-Returns:
-  TensorFlow node outputting pooling results.
-"""
 def apply_pooling(input_tensor, mode, ksize, strides, padding):
+  """Utility function to add pooling to the graph.
+
+  Args:
+    input_tensor: input tensor graph.
+    type:         pooling type.
+    ksize:        window size.
+    strides:      stride size.
+    padding:      padding algorithm.
+
+  Returns:
+    TensorFlow node outputting pooling results.
+  """
   with tf.name_scope('pooling'):
     return tf.nn.max_pool(input_tensor, ksize, strides, padding, name="max_pool") if mode == "max" else input_tensor
     return tf.nn.avg_pool(input_tensor, ksize, strides, padding, name="avg_pool") if mode == "avg" else input_tensor
 
-"""
-Batch normalization on convolutional maps.
-Ref.: http://stackoverflow.com/questions/33949786/how-could-i-use-batch-normalization-in-tensorflow
-Args:
-    input_tensor: Tensor, 4D BHWD input maps
-    n_out:        integer, depth of input maps
-    phase_train:  boolean tf.Varialbe, true indicates training phase
-    scope:        string, variable scope
-Return:
-    Batch-normalized maps
-"""
 def batch_normalization(input_tensor, n_out, phase_train):
+  """
+  Batch normalization on convolutional maps.
+  
+  Reference: http://stackoverflow.com/questions/33949786/how-could-i-use-batch-normalization-in-tensorflow
+  
+  Args:
+      input_tensor: Tensor, 4D BHWD input maps
+      n_out:        integer, depth of input maps
+      phase_train:  boolean tf.Varialbe, true indicates training phase
+      scope:        string, variable scope
+  
+  Return:
+      Batch-normalized maps
+  """
   with tf.name_scope('batch_norm'):
     beta = tf.Variable(tf.constant(0.0, shape=[n_out]), name='beta', trainable=True)
     gamma = tf.Variable(tf.constant(1.0, shape=[n_out]), name='gamma', trainable=True)
@@ -205,20 +208,20 @@ def fully_connected(input_tensor,
 
 
 
-"""
-Fully-connected layer.
-Args:
-    input_tensor: Tensor, 4D BHWD input maps
-    n_inputs: integer, number of input
-    units: integer, number of units
-Return:
-    output matrix
-"""
 def fc_layer(input_tensor, 
               n_inputs, 
               units, 
               activation_func,
               enable_hist_summary):
+  """Fully-connected layer.
+  Args:
+      input_tensor: Tensor, 4D BHWD input maps
+      n_inputs: integer, number of input
+      units: integer, number of units
+  
+  Return:
+      output matrix
+  """
   with tf.name_scope('fc'):
     fc = fully_connected(input_tensor, n_inputs, units, enable_hist_summary)
     actv = apply_activation(fc, activation_func)
@@ -231,38 +234,38 @@ def regression_layer(input_tensor,
   with tf.name_scope('fc'):
     return fully_connected(input_tensor, n_inputs, 1, enable_hist_summary)
 
-"""Builds a model of the requested architecture compatible with the settings.
-
-There are many possible ways of deriving predictions from a spectrogram
-input, so this function provides an abstract interface for creating different
-kinds of models in a black-box way. You need to pass in a TensorFlow node as
-the 'fingerprint' input, and this should output a batch of 1D features that
-describe the audio. Typically this will be derived from a spectrogram that's
-been run through an MFCC, but in theory it can be any feature vector of the
-size specified in params['fingerprint_size'].
-
-The function will build the graph it needs in the current TensorFlow graph,
-and return the tensorflow output that will contain the 'logits' input to the
-softmax prediction process. If training flag is on, it will also return a
-placeholder node that can be used to control the dropout amount.
-
-Args:
-  fingerprint_input: TensorFlow node that will output audio feature vectors.
-  params: Dictionary of information about the model.
-  model_architecture: String specifying which kind of model to create.
-  runtime_settings: Dictionary of information about the runtime.
-
-Returns:
-  TensorFlow node outputting logits results, and optionally a dropout
-  placeholder.
-
-Raises:
-  Exception: If the architecture type isn't recognized.
-"""
 def create_model(fingerprint_input, 
                  params, 
                  model_architecture,
                  runtime_settings=None):
+  """Builds a model of the requested architecture compatible with the settings.
+
+  There are many possible ways of deriving predictions from a spectrogram
+  input, so this function provides an abstract interface for creating different
+  kinds of models in a black-box way. You need to pass in a TensorFlow node as
+  the 'fingerprint' input, and this should output a batch of 1D features that
+  describe the audio. Typically this will be derived from a spectrogram that's
+  been run through an MFCC, but in theory it can be any feature vector of the
+  size specified in params['fingerprint_size'].
+
+  The function will build the graph it needs in the current TensorFlow graph,
+  and return the tensorflow output that will contain the 'logits' input to the
+  softmax prediction process. If training flag is on, it will also return a
+  placeholder node that can be used to control the dropout amount.
+
+  Args:
+    fingerprint_input: TensorFlow node that will output audio feature vectors.
+    params: Dictionary of information about the model.
+    model_architecture: String specifying which kind of model to create.
+    runtime_settings: Dictionary of information about the runtime.
+
+  Returns:
+    TensorFlow node outputting logits results, and optionally a dropout
+    placeholder.
+
+  Raises:
+    Exception: If the architecture type isn't recognized.
+  """
 
   if model_architecture == 'conv':
     return create_conv_model(fingerprint_input, params)
@@ -272,45 +275,45 @@ def create_model(fingerprint_input,
     raise Exception('model_architecture argument "' + model_architecture +
                     '" not recognized, should be "conv"')
 
-"""Builds a standard convolutional model.
-
-This is roughly, with some different parameters, the network in the:
-'Convolutional Neural Networks for No-Reference Image Quality Assessment' paper:
-http://ieeexplore.ieee.org/document/6909620/
-
-Here's the layout of the graph:
-
-(fingerprint_input)
-        v
-    [Conv2D]<-(weights)
-        v
-    [BiasAdd]<-(bias)
-        v
-[BatchNormaliztion]
-        v
-      [Relu]
-        v
-    [Conv2D]<-(weights)
-        v
-    [BiasAdd]<-(bias)
-        v
-[BatchNormaliztion]
-        v
-      [Relu]
-        v    
-    [Pooling]
-        v
-  [FullConected] (1 or 2 layers)
-
-Args:
-  fingerprint_input: TensorFlow node that will output audio feature vectors.
-  params: Dictionary of information about the model.
-
-Returns:
-  TensorFlow node outputting logits results, and optionally a dropout
-  placeholder.
-"""
 def create_conv_model(fingerprint_input, params):
+  """Builds a standard convolutional model.
+
+  This is roughly, with some different parameters, the network in the:
+  'Convolutional Neural Networks for No-Reference Image Quality Assessment' paper:
+  http://ieeexplore.ieee.org/document/6909620/
+
+  Here's the layout of the graph:
+
+  (fingerprint_input)
+          v
+      [Conv2D]<-(weights)
+          v
+      [BiasAdd]<-(bias)
+          v
+  [BatchNormaliztion]
+          v
+        [Relu]
+          v
+      [Conv2D]<-(weights)
+          v
+      [BiasAdd]<-(bias)
+          v
+  [BatchNormaliztion]
+          v
+        [Relu]
+          v    
+      [Pooling]
+          v
+    [FullConected] (1 or 2 layers)
+
+  Args:
+    fingerprint_input: TensorFlow node that will output audio feature vectors.
+    params: Dictionary of information about the model.
+
+  Returns:
+    TensorFlow node outputting logits results, and optionally a dropout
+    placeholder.
+  """
   fingerprint = tf.reshape(fingerprint_input, [-1, params['n_coeffs'], params['n_frames'], 1])
   phase_train = tf.placeholder(tf.bool, name='phase_train')
 
@@ -326,83 +329,89 @@ def create_conv_model(fingerprint_input, params):
   )
 
   # c0
-  with tf.name_scope('conv_0'):
-    conv_0 = conv_layer(
-      fingerprint, 
-      params['filter_height'][0], 
-      params['filter_width'][0], 
-      fingerprint.shape[-1].value, 
-      params['stride'][0], 
-      params['filter_count'][0]
-    )
-    batch_norm_0 = batch_norm_layer(conv_0, params['filter_count'][0]) if params['apply_batch_norm'] else conv_0
-    activation_0 = activation_layer(batch_norm_0)
-    dropout_0 = dropout_layer(activation_0) if params['apply_dropout'] else activation_0
+  if params['conv_layers'] > 0:
+    with tf.name_scope('conv_0'):
+      conv_0 = conv_layer(
+        fingerprint, 
+        params['filter_height'][0], 
+        params['filter_width'][0], 
+        fingerprint.shape[-1].value, 
+        params['stride'][0], 
+        params['filter_count'][0]
+      )
+      batch_norm_0 = batch_norm_layer(conv_0, params['filter_count'][0]) if params['apply_batch_norm'] else conv_0
+      activation_0 = activation_layer(batch_norm_0)
+      dropout_0 = dropout_layer(activation_0) if params['apply_dropout'] else activation_0
 
   # c1
-  with tf.name_scope('conv_1'):
-    conv_1 = conv_layer(
-      dropout_0, 
-      params['filter_height'][1], 
-      params['filter_width'][1], 
-      dropout_0.shape[-1].value, 
-      params['stride'][1], 
-      params['filter_count'][1]
-    )
-    batch_norm_1 = batch_norm_layer(conv_1, params['filter_count'][1]) if params['apply_batch_norm'] else conv_1
-    activation_1 = activation_layer(batch_norm_1)
-    dropout_1 = dropout_layer(activation_1) if params['apply_dropout'] else activation_1
+  if params['conv_layers'] > 1:
+    with tf.name_scope('conv_1'):
+      conv_1 = conv_layer(
+        dropout_0, 
+        params['filter_height'][1], 
+        params['filter_width'][1], 
+        dropout_0.shape[-1].value, 
+        params['stride'][1], 
+        params['filter_count'][1]
+      )
+      batch_norm_1 = batch_norm_layer(conv_1, params['filter_count'][1]) if params['apply_batch_norm'] else conv_1
+      activation_1 = activation_layer(batch_norm_1)
+      dropout_1 = dropout_layer(activation_1) if params['apply_dropout'] else activation_1
 
   # c2
-  with tf.name_scope('conv_2'):
-    conv_2 = conv_layer(
-      dropout_1, 
-      params['filter_height'][2], 
-      params['filter_width'][2], 
-      dropout_1.shape[-1].value, 
-      params['stride'][2], 
-      params['filter_count'][2]
-    )
-    batch_norm_2 = batch_norm_layer(conv_2, params['filter_count'][2]) if params['apply_batch_norm'] else conv_2
-    activation_2 = activation_layer(batch_norm_2)
-    dropout_2 = dropout_layer(activation_2) if params['apply_dropout'] else activation_2
+  if params['conv_layers'] > 2:
+    with tf.name_scope('conv_2'):
+      conv_2 = conv_layer(
+        dropout_1, 
+        params['filter_height'][2], 
+        params['filter_width'][2], 
+        dropout_1.shape[-1].value, 
+        params['stride'][2], 
+        params['filter_count'][2]
+      )
+      batch_norm_2 = batch_norm_layer(conv_2, params['filter_count'][2]) if params['apply_batch_norm'] else conv_2
+      activation_2 = activation_layer(batch_norm_2)
+      dropout_2 = dropout_layer(activation_2) if params['apply_dropout'] else activation_2
 
   # c3
-  with tf.name_scope('conv_3'):
-    conv_3 = conv_layer(
-      dropout_2, 
-      params['filter_height'][3], 
-      params['filter_width'][3], 
-      dropout_2.shape[-1].value, 
-      params['stride'][3], 
-      params['filter_count'][3]
-    )
-    batch_norm_3 = batch_norm_layer(conv_3, params['filter_count'][3]) if params['apply_batch_norm'] else conv_3
-    activation_3 = activation_layer(batch_norm_3)
-    dropout_3 = dropout_layer(activation_3) if params['apply_dropout'] else activation_3
+  if params['conv_layers'] > 3:
+    with tf.name_scope('conv_3'):
+      conv_3 = conv_layer(
+        dropout_2, 
+        params['filter_height'][3], 
+        params['filter_width'][3], 
+        dropout_2.shape[-1].value, 
+        params['stride'][3], 
+        params['filter_count'][3]
+      )
+      batch_norm_3 = batch_norm_layer(conv_3, params['filter_count'][3]) if params['apply_batch_norm'] else conv_3
+      activation_3 = activation_layer(batch_norm_3)
+      dropout_3 = dropout_layer(activation_3) if params['apply_dropout'] else activation_3
 
   # c4
-  with tf.name_scope('conv_4'):
-    conv_4 = conv_layer(
-      dropout_3, 
-      params['filter_height'][4], 
-      params['filter_width'][4], 
-      dropout_3.shape[-1].value, 
-      params['stride'][4], 
-      params['filter_count'][4]
-    )
-    batch_norm_4 = batch_norm_layer(conv_4, params['filter_count'][4]) if params['apply_batch_norm'] else conv_4
-    activation_4 = activation_layer(batch_norm_4)
-    dropout_4 = dropout_layer(activation_4) if params['apply_dropout'] else activation_4
+  if params['conv_layers'] > 4:
+    with tf.name_scope('conv_4'):
+      conv_4 = conv_layer(
+        dropout_3, 
+        params['filter_height'][4], 
+        params['filter_width'][4], 
+        dropout_3.shape[-1].value, 
+        params['stride'][4], 
+        params['filter_count'][4]
+      )
+      batch_norm_4 = batch_norm_layer(conv_4, params['filter_count'][4]) if params['apply_batch_norm'] else conv_4
+      activation_4 = activation_layer(batch_norm_4)
+      dropout_4 = dropout_layer(activation_4) if params['apply_dropout'] else activation_4
 
   # flattened 
-  [_, output_height, output_width, output_depth] = dropout_4.get_shape()
+  output_conv = eval('dropout_' + str(params['conv_layers']-1))
+  [_, output_height, output_width, output_depth] = output_conv.get_shape()
   element_count = int(output_height * output_width * output_depth)
-  flattened = tf.reshape(dropout_4, [-1, element_count])
+  flattened = tf.reshape(output_conv, [-1, element_count])
 
   # dense
-  fc1 = dense_layer(flattened, params['hidden_units'][0], name='dense1')
-  fc2 = dense_layer(fc1, params['hidden_units'][1], name='dense2')
+  fc1 = dense_layer(flattened, params['hidden_units'][0], name='dense_0')
+  fc2 = dense_layer(fc1, params['hidden_units'][1], name='dense_1')
 
   # regression 
   estimator = tf.layers.dense(fc2, 1, name='estimator')
