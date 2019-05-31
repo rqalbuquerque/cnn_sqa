@@ -119,8 +119,8 @@ def main(argv):
 if __name__ == '__main__':
     if len(sys.argv) == 2:
         config_dir = sys.argv[1]
-        FLAGS, _unparsed = config.set_flags(
-            config.read_config(config_dir + '/config.json'))
+        FLAGS, _unparsed = config.set(
+            config.read(config_dir + '/config.json'))
         tf.app.run(main=main, argv=[FLAGS, config_dir])
     else:
         raise ValueError('Invalid number of args!')

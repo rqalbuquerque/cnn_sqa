@@ -110,7 +110,7 @@ if __name__ == '__main__':
         config_path = sys.argv[1]
         input_path = sys.argv[2]
         output_path = sys.argv[3]
-        FLAGS, _ = config.set_flags(config.read_config(config_path))
+        FLAGS, _ = config.set(config.read(config_path))
         tf.app.run(main=main, argv=[FLAGS, config_path, input_path, output_path])
     else:
         raise ValueError('Invalid number of args!')

@@ -296,7 +296,7 @@ def main(argv):
                    global_step=training_steps_max)
         FLAGS.start_checkpoint += '-' + str(training_steps_max)
 
-    config.save_configs(output_dir, FLAGS.__dict__, )
+    config.save(output_dir, FLAGS.__dict__, )
 
     train_writer.close()
     # validation_writer.close()
@@ -305,5 +305,5 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    FLAGS, _unparsed = config.set_flags()
+    FLAGS, _unparsed = config.set()
     tf.app.run(main=main, argv=[FLAGS])
