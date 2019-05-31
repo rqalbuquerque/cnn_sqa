@@ -4,8 +4,10 @@
 import math
 import csv
 import sys
-import utils
 import os.path
+
+import utils
+
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt

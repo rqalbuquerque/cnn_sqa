@@ -9,14 +9,10 @@ import os
 import numpy as np
 import tensorflow as tf
 
+import utils
+import config
 import input_data
 import models
-import config
-
-
-def create_dir(new_dir):
-    if not os.path.exists(new_dir):
-        os.makedirs(new_dir)
 
 
 def main(argv):
@@ -76,7 +72,7 @@ def main(argv):
     tf.global_variables_initializer().run()
     models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
     
-    create_dir(output_path)
+    utils.create_dir(output_path)
 
     with open(output_path + '/scores.csv', 'wb') as csvfile:
         names, scores = [], []

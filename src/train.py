@@ -20,9 +20,10 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.client import timeline
 
+import utils
+import config
 import input_data
 import models
-import config
 
 
 def create_output_path(output_dir, config_name=''):
@@ -31,11 +32,6 @@ def create_output_path(output_dir, config_name=''):
     else:
         now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         return output_dir + '/run-' + now
-
-
-def create_dir(new_dir):
-    if not os.path.exists(new_dir):
-        os.makedirs(new_dir)
 
 
 def get_optimizer(learning_rate, optimizer):
@@ -154,7 +150,7 @@ def main(argv):
 
     if FLAGS.enable_profile:
         profile_dir = output_dir + '/profile'
-        create_dir(profile_dir)
+        utils.create_dir(profile_dir)
 
     if len(FLAGS.training_steps) != len(FLAGS.learning_rate):
         raise Exception(
@@ -291,7 +287,7 @@ def main(argv):
 
     # Save the model
     if FLAGS.enable_checkpoint_save:
-        create_dir(output_dir + '/checkpoint')
+        utils.create_dir(output_dir + '/checkpoint')
         FLAGS.start_checkpoint = os.path.join(
             output_dir + '/checkpoint', FLAGS.model_architecture + '.ckpt')
         tf.logging.info('Saving to "%s-%d"',

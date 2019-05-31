@@ -7,6 +7,17 @@ from __future__ import print_function
 
 import os
 
+
+def create_dir(name):
+    """Create a new directory if not exist already
+      
+      Args: 
+        name: String path with directory name.
+    """
+    if not os.path.exists(name):
+        os.makedirs(name)
+
+
 def find_by_extension(data_dir, ext):
     """Find all files in directory with a defined extension.
 

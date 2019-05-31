@@ -9,14 +9,10 @@ import os
 import numpy as np
 import tensorflow as tf
 
+import utils
+import config
 import input_data
 import models
-import config
-
-
-def create_dir(new_dir):
-    if not os.path.exists(new_dir):
-        os.makedirs(new_dir)
 
 
 def main(argv):
@@ -82,7 +78,7 @@ def main(argv):
     
     analysis_dir = config_dir + '/analysis'
     output_dir = analysis_dir + '/error'
-    create_dir(output_dir)
+    utils.create_dir(output_dir)
 
     with open(output_dir + '/validation_errors.csv', 'wb') as csvfile:
         names, gts, scores, errors = [], [], [], []
