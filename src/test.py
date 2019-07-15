@@ -9,10 +9,10 @@ import os
 import numpy as np
 import tensorflow as tf
 
-import utils
-import config
-import input_data
-import models
+from src import utils
+from src import config
+from src import input_data
+from src import models
 
 
 def main(argv):
@@ -28,7 +28,6 @@ def main(argv):
     # Create model settings.
     model_settings = models.prepare_model_settings(
         FLAGS.enable_hist_summary,
-        FLAGS.input_processing_lib,
         FLAGS.sample_rate,
         FLAGS.clip_duration_ms,
         FLAGS.window_size_ms,

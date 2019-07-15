@@ -6,8 +6,6 @@ import csv
 import sys
 import os.path
 
-import utils
-
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
@@ -86,7 +84,7 @@ if __name__ == '__main__':
     parent_path = os.path.dirname(file_name)
 
     # read        
-    df = pd.read_csv(file_name, delimiter=', ')
+    df = pd.read_csv(file_name, delimiter=',')
 
     # global configs
     plt.rc('figure', figsize=(10, 8))
@@ -110,10 +108,6 @@ if __name__ == '__main__':
     # df_snrs = np.sort(df.SNR.unique())
 
     # score_ticks = [0,1,2,3,4,5]
-
-    print(df.describe())
-    print(df.head())
-    sns.distplot(df['Score'], bins=30)
 
     """ ************************************************ General ************************************************ """
     # describe_two_columns(df, 'GT', 'Prediction', 'General')

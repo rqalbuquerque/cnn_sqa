@@ -8,16 +8,13 @@ from __future__ import print_function
 import argparse
 import json
 
-
 def save(out_dir, flags):
     with open(out_dir + '/' + 'config.json', "w") as f:
         json.dump(flags, f, indent=2)
 
-
 def read(path):
     with open(path) as f:
         return json.load(f)
-
 
 def set(configs={}):
     parser = argparse.ArgumentParser(description='Process model args.')
@@ -38,20 +35,6 @@ def set(configs={}):
             '/home/rqa/renato/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/logs/test'),
         help='Where to save summary logs for TensorBoard.')
 
-# config summary
-    parser.add_argument(
-        '--enable_hist_summary',
-        type=str,
-        default=configs.get('enable_hist_summary', False),
-        help='Directory to write histogram summary.')
-
-# config profile
-    parser.add_argument(
-        '--enable_profile',
-        type=str,
-        default=configs.get('enable_profile', False),
-        help='Directory to write profile results.')
-
 # checkpoint saving
     parser.add_argument(
         '--enable_checkpoint_save',
@@ -60,11 +43,6 @@ def set(configs={}):
         help='Flag to enable/disable checkpoint saving.')
 
 # config Learning
-    parser.add_argument(
-        '--optimizer',
-        type=str,
-        default=configs.get('optimizer', 'gradient_descent'),
-        help='What optimizer to use.')
     parser.add_argument(
         '--testing_percentage',
         type=int,
@@ -94,11 +72,6 @@ def set(configs={}):
 
 # config Signal
     parser.add_argument(
-        '--input_processing_lib',
-        type=str,
-        default=configs.get('input_processing_lib', 'tensorflow'),
-        help='Processing library of audio samples')
-    parser.add_argument(
         '--sample_rate',
         type=int,
         default=configs.get('sample_rate', 16000),
@@ -113,7 +86,7 @@ def set(configs={}):
     parser.add_argument(
         '--data_aug_algorithms',
         type=list,
-        default=configs.get('data_aug_algorithms', ["random_circular_shift"]),
+        default=configs.get('data_aug_algorithms', []),
         help='Expected sample rate of the wavs')
 
 # config Feature
@@ -144,11 +117,6 @@ def set(configs={}):
         type=str,
         default=configs.get('model_architecture', 'slim_conv'),
         help='What model architecture to use')
-    parser.add_argument(
-        '--conv_layers',
-        type=int,
-        default=configs.get('conv_layers', 5),
-        help='How many convolutional layers to use')
     parser.add_argument(
         '--filter_width',
         type=list,
@@ -184,26 +152,11 @@ def set(configs={}):
         type=str,
         default=configs.get('activation', 'relu'),
         help='What activation function type to use.')
-    parser.add_argument(
-        '--apply_regularization',
-        type=bool,
-        default=configs.get('apply_regularization', False),
-        help='Decide to apply dropout')
-    parser.add_argument(
-        '--kernel_regularizer',
-        type=str,
-        default=configs.get('kernel_regularizer', ''),
-        help='What kernel regularizer function to use')
 
 # config FC
     parser.add_argument(
-        '--fc_layers',
-        type=int,
-        default=configs.get('fc_layers', 2),
-        help='Number of fully connected layers to use.')
-    parser.add_argument(
         '--hidden_units',
-	type=list,
+        type=list,
         default=configs.get('hidden_units', [25, 25]),
         help='Number of units in hidden layers.')
 
@@ -222,19 +175,5 @@ def set(configs={}):
         type=str,
         default=configs.get('start_checkpoint', ''),
         help='If specified, restore this pretrained model before any training.')
-
-# testing
-    parser.add_argument(
-        '--evaluate_testing',
-        type=str,
-        default=configs.get('evaluate_testing', False),
-        help='Apply or not testing step.')
-
-# config nans checking
-    parser.add_argument(
-        '--check_nans',
-        type=bool,
-        default=configs.get('check_nans', False),
-        help='Whether to check for invalid numbers during processing')
 
     return parser.parse_known_args()

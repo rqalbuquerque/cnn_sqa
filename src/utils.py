@@ -1,4 +1,4 @@
-"""Utils definitions to manipulate files.
+"""Util definitions to manipulate directories and files.
 
 """
 from __future__ import absolute_import
@@ -6,10 +6,12 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import json
+import csv
 
 
 def create_dir(name):
-    """Create a new directory if not exist already
+    """Create a new directory if not exist yet.
       
       Args: 
         name: String path with directory name.
@@ -18,8 +20,19 @@ def create_dir(name):
         os.makedirs(name)
 
 
+def add_suffix_in_filename(path_file, suffix):
+    """Add a suffix into file name before extension.
+      
+      Args: 
+        path_file: Path file name.
+        suffix: String suffix to insert.
+    """
+    name, extension = os.path.splitext(path_file)
+    return name + suffix + extension
+
+
 def find_by_extension(data_dir, ext):
-    """Find all files in directory with a defined extension.
+    """Find all files in directory by extension.
 
     Args:
       data_dir: Data directory.
@@ -29,15 +42,15 @@ def find_by_extension(data_dir, ext):
       List of string with filenames.
     """
     files = []
-
-    for dirpath, _, filenames in os.walk(data_dir):
+    for root, _, filenames in os.walk(data_dir):
         for filename in [f for f in filenames if f.endswith(ext)]:
-            files.append(dirpath + '/' + filename)
-
+            rel_dir = os.path.relpath(root, data_dir)
+            norm_path = os.path.normpath(os.path.join(rel_dir, filename))
+            files.append(norm_path)
     return files
 
 
-def read_csv_as_dict(csv_path, delimiter):
+def read_csv_as_dict(csv_path, delimiter, fieldnames=None):
     """It reads csv as dictionary.
 
     Args:
@@ -47,7 +60,21 @@ def read_csv_as_dict(csv_path, delimiter):
     Returns:
       A list of samples represented as dictionaries.
     """
-    data_index = []
+    data = []
     with open(csv_path) as csv_file:
-        data_index = csv.DictReader(fh, delimiter=delimiter)
-    return data_index
+        reader = csv.DictReader(csv_file, delimiter=delimiter, fieldnames=fieldnames)
+        data = [row for row in reader]
+    return data
+
+
+def read_json_as_dict(path):
+    """It reads json as dictionary.
+
+    Args:
+      path: Path to csv file.
+
+    Returns:
+      A dictionary with data.
+    """
+    with open(path) as f:
+        return json.load(f)

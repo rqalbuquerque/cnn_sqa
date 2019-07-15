@@ -10,25 +10,19 @@ from six.moves import xrange
 from functools import partial
 
 
-def prepare_model_settings(enable_hist_summary,
-                           input_processing_lib,
-                           sample_rate,
+def prepare_model_settings(sample_rate,
                            clip_duration_ms,
                            window_size_ms,
                            window_stride_ms,
-                           data_aug_algorithms,
                            feature,
                            n_coeffs,
-                           conv_layers,
                            filter_width,
                            filter_height,
                            filter_count,
                            stride,
                            apply_batch_norm,
                            activation,
-                           kernel_regularizer,
                            apply_dropout,
-                           fc_layers,
                            hidden_units):
     """Calculates common settings needed for all models.
 
@@ -46,23 +40,18 @@ def prepare_model_settings(enable_hist_summary,
     desired_samples = int(sample_rate * clip_duration_ms / 1000.0)
     window_size_samples = int(sample_rate * window_size_ms / 1000.0)
     window_stride_samples = int(sample_rate * window_stride_ms / 1000.0)
-    n_frames = 1 + \
-        int((desired_samples-window_size_samples) / window_stride_samples)
+    n_frames = 1 + int((desired_samples-window_size_samples) / window_stride_samples)
     fingerprint_size = n_coeffs * n_frames
 
     return {
-        'enable_hist_summary': enable_hist_summary,
         'desired_samples': desired_samples,
         'window_size_samples': window_size_samples,
         'window_stride_samples': window_stride_samples,
         'fingerprint_size': fingerprint_size,
-        'input_processing_lib': input_processing_lib,
         'sample_rate': sample_rate,
         'n_frames': n_frames,
-        'data_aug_algorithms': data_aug_algorithms,
         'feature': feature,
         'n_coeffs': n_coeffs,
-        'conv_layers': conv_layers,
         'filter_width': filter_width,
         'filter_height': filter_height,
         'filter_count': filter_count,
@@ -70,8 +59,6 @@ def prepare_model_settings(enable_hist_summary,
         'apply_dropout': apply_dropout,
         'apply_batch_norm': apply_batch_norm,
         'activation': activation,
-        'kernel_regularizer': kernel_regularizer,
-        'fc_layers': fc_layers,
         'hidden_units': hidden_units
     }
 
@@ -87,56 +74,31 @@ def load_variables_from_checkpoint(sess, start_checkpoint):
     saver.restore(sess, start_checkpoint)
 
 
-def apply_activation(input_tensor, mode):
+def activation(input_tensor, mode):
     if mode == "softplus":
         return tf.nn.softplus(input_tensor, name="softplus")
-    elif mode == "leaky_relu":
-        return tf.nn.leaky_relu(input_tensor, alpha=0.2, name="leaky_relu")
     elif mode == "elu":
         return tf.nn.elu(input_tensor, name="elu")
-    else:
+    elif mode == "relu":
         return tf.nn.relu(input_tensor, name="relu")
+    else:
+        raise Exception("Invalid activation function!")
 
 
-def get_activation_func(mode):
+def get_activation(mode):
     if mode == "softplus":
         return tf.nn.softplus
-    return tf.nn.relu
-
-
-def get_kernel_regularizer(mode, scale=0.0001):
-    if mode == "l1":
-        return tf.contrib.layers.l1_regularizer(scale)
-    elif mode == "l2":
-        return tf.contrib.layers.l2_regularizer(scale)
-    elif mode == "l1_l2":
-        return tf.contrib.layers.l1_l2_regularizer(scale)
-    return None
-
-
-def apply_pooling(input_tensor, mode, ksize, strides, padding):
-    """Utility function to add pooling to the graph.
-
-    Args:
-      input_tensor: input tensor graph.
-      type:         pooling type.
-      ksize:        window size.
-      strides:      stride size.
-      padding:      padding algorithm.
-
-    Returns:
-      TensorFlow node outputting pooling results.
-    """
-    with tf.name_scope('pooling'):
-        return tf.nn.max_pool(input_tensor, ksize, strides, padding, name="max_pool") if mode == "max" else input_tensor
-        return tf.nn.avg_pool(input_tensor, ksize, strides, padding, name="avg_pool") if mode == "avg" else input_tensor
+    elif mode == "elu":
+        return tf.nn.elu
+    elif mode == "relu":
+        return tf.nn.relu
+    else:
+        raise Exception("Invalid activation function!")
 
 
 def batch_normalization(input_tensor, n_out, phase_train):
     """
     Batch normalization on convolutional maps.
-
-    Reference: http://stackoverflow.com/questions/33949786/how-could-i-use-batch-normalization-in-tensorflow
 
     Args:
         input_tensor: Tensor, 4D BHWD input maps
@@ -148,13 +110,10 @@ def batch_normalization(input_tensor, n_out, phase_train):
         Batch-normalized maps
     """
     with tf.name_scope('batch_norm'):
-        beta = tf.Variable(tf.constant(
-            0.0, shape=[n_out]), name='beta', trainable=True)
-        gamma = tf.Variable(tf.constant(
-            1.0, shape=[n_out]), name='gamma', trainable=True)
-        batch_mean, batch_var = tf.nn.moments(
-            input_tensor, [0, 1, 2], name='moments')
-        ema = tf.train.ExponentialMovingAverage(decay=0.5)
+        beta = tf.Variable(tf.constant(0.0, shape=[n_out]), name='beta', trainable=True)
+        gamma = tf.Variable(tf.constant(1.0, shape=[n_out]), name='gamma', trainable=True)
+        batch_mean, batch_var = tf.nn.moments(input_tensor, [0, 1, 2], name='moments')
+        ema = tf.train.ExponentialMovingAverage(decay=0.99)
 
         def mean_var_with_update():
             ema_apply_op = ema.apply([batch_mean, batch_var])
@@ -173,8 +132,7 @@ def conv_2d(input_tensor,
             filter_width,
             filters_depth,
             stride,
-            output_maps_count,
-            enable_hist_summary):
+            output_maps_count):
     with tf.name_scope('conv'):
         weights = tf.Variable(
             tf.truncated_normal(
@@ -188,72 +146,14 @@ def conv_2d(input_tensor,
                 name='random'),
             name='weights')
         bias = tf.Variable(tf.zeros([output_maps_count]), name='biases')
-        conv = tf.math.add(tf.nn.conv2d(input_tensor, weights, [
-                           1, stride, stride, 1], 'SAME'), bias, name='sum')
-
-        if enable_hist_summary:
-            tf.summary.histogram('weights', weights)
-            tf.summary.histogram('bias', bias)
-
+        convolution = tf.nn.conv2d(input_tensor, weights, [1, stride, stride, 1], 'SAME', name='convolution')
+        conv = tf.math.add(convolution, bias, name='sum')
         return conv
-
-
-def fully_connected(input_tensor,
-                    n_inputs,
-                    units,
-                    enable_hist_summary):
-    weights = tf.Variable(
-        tf.truncated_normal(
-            [
-                n_inputs,
-                units
-            ],
-            stddev=0.01,
-            name='random'),
-        name='weights')
-    bias = tf.Variable(tf.zeros([units]), name='biases')
-    fc = tf.math.add(tf.matmul(input_tensor, weights,
-                               name='mult'), bias, name='sum')
-
-    if enable_hist_summary:
-        tf.summary.histogram('weights', weights)
-        tf.summary.histogram('bias', bias)
-
-    return fc
-
-
-def fc_layer(input_tensor,
-             n_inputs,
-             units,
-             activation_func,
-             enable_hist_summary):
-    """Fully-connected layer.
-    Args:
-        input_tensor: Tensor, 4D BHWD input maps
-        n_inputs: integer, number of input
-        units: integer, number of units
-
-    Return:
-        output matrix
-    """
-    with tf.name_scope('fc'):
-        fc = fully_connected(input_tensor, n_inputs,
-                             units, enable_hist_summary)
-        actv = apply_activation(fc, activation_func)
-        return actv
-
-
-def regression_layer(input_tensor,
-                     n_inputs,
-                     enable_hist_summary):
-    with tf.name_scope('fc'):
-        return fully_connected(input_tensor, n_inputs, 1, enable_hist_summary)
 
 
 def create_model(fingerprint_input,
                  params,
-                 model_architecture,
-                 runtime_settings=None):
+                 model_architecture):
     """Builds a model of the requested architecture compatible with the settings.
 
     There are many possible ways of deriving predictions from a spectrogram
@@ -273,7 +173,6 @@ def create_model(fingerprint_input,
       fingerprint_input: TensorFlow node that will output audio feature vectors.
       params: Dictionary of information about the model.
       model_architecture: String specifying which kind of model to create.
-      runtime_settings: Dictionary of information about the runtime.
 
     Returns:
       TensorFlow node outputting logits results, and optionally a dropout
@@ -285,8 +184,6 @@ def create_model(fingerprint_input,
 
     if model_architecture == 'conv':
         return create_conv_model(fingerprint_input, params)
-    elif model_architecture == 'slim_conv':
-        return create_slim_conv_model(fingerprint_input, params)
     else:
         raise Exception('model_architecture argument "' + model_architecture +
                         '" not recognized, should be "conv"')
@@ -311,6 +208,12 @@ def create_conv_model(fingerprint_input, params):
             v
           [Relu]
             v
+        [Dropout]
+            v
+            .
+            . (3 more conv layers)
+            .
+            v
         [Conv2D]<-(weights)
             v
         [BiasAdd]<-(bias)
@@ -318,10 +221,18 @@ def create_conv_model(fingerprint_input, params):
     [BatchNormaliztion]
             v
           [Relu]
-            v    
-        [Pooling]
             v
-      [FullConected] (1 or 2 layers)
+        [Dropout]
+            v
+      [FullConected]
+            v
+          [Relu]
+            v
+      [FullConected]
+            v
+          [Relu]
+            v
+        [estimator]
 
     Args:
       fingerprint_input: TensorFlow node that will output audio feature vectors.
@@ -335,22 +246,19 @@ def create_conv_model(fingerprint_input, params):
         fingerprint_input, [-1, params['n_coeffs'], params['n_frames'], 1])
     phase_train = tf.placeholder(tf.bool, name='phase_train')
 
+    # log
+    tf.summary.image('input', fingerprint, 1)
+
     # partials
-    conv_layer = partial(
-        conv_2d, enable_hist_summary=params['enable_hist_summary'])
     batch_norm_layer = partial(batch_normalization, phase_train=phase_train)
-    activation_layer = partial(apply_activation, mode=params['activation'])
+    activation_layer = partial(activation, mode=params['activation'])
     dropout_layer = partial(tf.layers.dropout, rate=0.5,
                             training=phase_train, name='dropout')
-    dense_layer = partial(
-        tf.layers.dense,
-        activation=get_activation_func(params['activation']),
-        kernel_regularizer=get_kernel_regularizer(params['kernel_regularizer'])
-    )
+    dense_layer = partial(tf.layers.dense, activation=get_activation("relu"))
 
     # c0
     with tf.name_scope('conv_0'):
-        conv_0 = conv_layer(
+        conv_0 = conv_2d(
             fingerprint,
             params['filter_height'][0],
             params['filter_width'][0],
@@ -366,7 +274,7 @@ def create_conv_model(fingerprint_input, params):
 
     # c1
     with tf.name_scope('conv_1'):
-        conv_1 = conv_layer(
+        conv_1 = conv_2d(
             dropout_0,
             params['filter_height'][1],
             params['filter_width'][1],
@@ -382,7 +290,7 @@ def create_conv_model(fingerprint_input, params):
 
     # c2
     with tf.name_scope('conv_2'):
-        conv_2 = conv_layer(
+        conv_2 = conv_2d(
             dropout_1,
             params['filter_height'][2],
             params['filter_width'][2],
@@ -398,7 +306,7 @@ def create_conv_model(fingerprint_input, params):
 
     # c3
     with tf.name_scope('conv_3'):
-        conv_3 = conv_layer(
+        conv_3 = conv_2d(
             dropout_2,
             params['filter_height'][3],
             params['filter_width'][3],
@@ -414,7 +322,7 @@ def create_conv_model(fingerprint_input, params):
 
     # c4
     with tf.name_scope('conv_4'):
-        conv_4 = conv_layer(
+        conv_4 = conv_2d(
             dropout_3,
             params['filter_height'][4],
             params['filter_width'][4],
@@ -431,66 +339,13 @@ def create_conv_model(fingerprint_input, params):
     # flattened
     [_, output_height, output_width, output_depth] = dropout_4.get_shape()
     element_count = int(output_height * output_width * output_depth)
-    flattened = tf.reshape(dropout_4, [-1, element_count])
+    flattened = tf.reshape(dropout_4, [-1, element_count], name='flatten')
 
     # dense
-    fc1 = dense_layer(flattened, params['hidden_units'][0], name='dense_0')
-    fc2 = dense_layer(fc1, params['hidden_units'][1], name='dense_1')
+    fc_1 = dense_layer(flattened, params['hidden_units'][0], name='dense_0')
+    fc_2 = dense_layer(fc_1, params['hidden_units'][1], name='dense_1')
 
     # regression
-    estimator = tf.layers.dense(fc2, 1, name='estimator')
-
-    # log
-    tf.summary.image('input', fingerprint, 1)
-
-    return estimator, phase_train
-
-
-def create_slim_conv_model(fingerprint_input, params):
-    fingerprint = tf.reshape(
-        fingerprint_input, [-1, params['n_coeffs'], params['n_frames'], 1])
-    phase_train = tf.placeholder(tf.bool, name='phase_train')
-
-    conv_layer = partial(
-        conv_2d, enable_hist_summary=params['enable_hist_summary'])
-    batch_norm_layer = partial(batch_normalization, phase_train=phase_train)
-    activation_layer = partial(apply_activation, mode=params['activation'])
-    dropout_layer = partial(tf.layers.dropout, rate=0.5,
-                            training=phase_train, name='dropout')
-    dense_layer = partial(
-        tf.layers.dense,
-        activation=get_activation_func(params['activation']),
-        kernel_regularizer=get_kernel_regularizer(params['kernel_regularizer'])
-    )
-
-    output_conv = fingerprint
-    for i in range(0, params['conv_layers']):
-        conv = conv_layer(
-            output_conv,
-            params['filter_height'][i],
-            params['filter_width'][i],
-            output_conv.shape[-1].value,
-            params['stride'][i],
-            params['filter_count'][i])
-        batch_norm = batch_norm_layer(
-            conv, params['filter_count'][i]) if params['apply_batch_norm'] else conv
-        activation = activation_layer(batch_norm)
-        output_conv = dropout_layer(
-            activation) if params['apply_dropout'] else activation
-
-    # flattened
-    [_, output_height, output_width, output_depth] = output_conv.get_shape()
-    element_count = int(output_height * output_width * output_depth)
-    flattened = tf.reshape(output_conv, [-1, element_count])
-
-    # dense
-    fc1 = dense_layer(flattened, params['hidden_units'][0], name='dense_0')
-    fc2 = dense_layer(fc1, params['hidden_units'][1], name='dense_1')
-
-    # regression
-    estimator = tf.layers.dense(fc2, 1, name='estimator')
-
-    # log
-    tf.summary.image('input', fingerprint, 1)
+    estimator = tf.layers.dense(fc_2, 1, name='estimator')
 
     return estimator, phase_train
