@@ -29,7 +29,7 @@ class TestRandomCircularShift(unittest.TestCase):
     """
     expected = []
     with self.assertRaises(ValueError):
-      result = data_augmentation.random_circular_shift([])
+      result = data_augmentation.rcs([])
 
   def test_random_circular_shift_bad_type(self):
     """
@@ -37,7 +37,7 @@ class TestRandomCircularShift(unittest.TestCase):
     """
     test_input = "test"
     with self.assertRaises(ValueError):
-      result = data_augmentation.random_circular_shift(test_input)
+      result = data_augmentation.rcs(test_input)
 
   def test_random_circular_shift_list(self):
     """
@@ -46,7 +46,7 @@ class TestRandomCircularShift(unittest.TestCase):
     data = [1,2,3,4,5,6,7]
     expected = [4,5,6,7,1,2,3]
     numpy.random.randint = mock.Mock(return_value=[3])
-    result = data_augmentation.random_circular_shift(data)
+    result = data_augmentation.rcs(data)
     self.assertEqual(result,expected)
 
 if __name__ == '__main__':

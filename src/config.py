@@ -19,40 +19,47 @@ def read(path):
 def set(configs={}):
     parser = argparse.ArgumentParser(description='Process model args.')
 
-# config DIRs
+    # config DIRs
     parser.add_argument(
         '--data_dir',
         type=str,
         default=configs.get(
             'data_dir',
-            '/home/rqa/renato/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/databases/speech_noise_dataset_suppl23/suppl23_mix_speech_noise'),
-        help=""" Where to download the speech training data to. """)
+            '/home/rqa/renato/git/cnn_sqa/databases/speech_noise_dataset_suppl23/suppl23_mix_speech_noise/'),
+        help='Where to get the speech training data.')
+    parser.add_argument(
+        '--data_file',
+        type=str,
+        default=configs.get(
+            'data_file',
+            '/home/rqa/renato/git/cnn_sqa/databases/speech_noise_dataset_suppl23/suppl23_mix_speech_noise/scores.csv'),
+        help='Where to read data samples.')
     parser.add_argument(
         '--output_dir',
         type=str,
         default=configs.get(
             'output_dir',
-            '/home/rqa/renato/git/A-Convolutional-Neural-Network-Approach-for-Speech-Quality-Assessment/logs/test'),
+            '/home/rqa/renato/git/cnn_sqa/logs/test'),
         help='Where to save summary logs for TensorBoard.')
 
-# checkpoint saving
+    # checkpoint saving
     parser.add_argument(
         '--enable_checkpoint_save',
         type=bool,
         default=configs.get('enable_checkpoint_save', True),
         help='Flag to enable/disable checkpoint saving.')
 
-# config Learning
-    parser.add_argument(
-        '--testing_percentage',
-        type=int,
-        default=configs.get('testing_percentage', 95),
-        help='What percentage of wavs to use as a test set.')
+    # config Learning
     parser.add_argument(
         '--validation_percentage',
         type=int,
         default=configs.get('validation_percentage', 0.5),
         help='What percentage of wavs to use as a validation set.')
+    parser.add_argument(
+        '--testing_percentage',
+        type=int,
+        default=configs.get('testing_percentage', 95),
+        help='What percentage of wavs to use as a test set.')
     parser.add_argument(
         '--batch_size',
         type=int,
@@ -70,7 +77,7 @@ def set(configs={}):
             'learning_rate', [0.01, 0.007, 0.005, 0.003, 0.001]),
         help='How large a learning rate to use when training.')
 
-# config Signal
+    # config wav samples
     parser.add_argument(
         '--sample_rate',
         type=int,
@@ -82,14 +89,14 @@ def set(configs={}):
         default=configs.get('clip_duration_ms', 8000),
         help='Expected duration in milliseconds of the wavs')
 
-# config Data Manipulation
+    # config Data Augmentation
     parser.add_argument(
-        '--data_aug_algorithms',
+        '--data_aug_columns',
         type=list,
-        default=configs.get('data_aug_algorithms', []),
-        help='Expected sample rate of the wavs')
+        default=configs.get('data_aug_columns', ['data_aug_1', 'data_aug_2']),
+        help='Data augmentation columns to load')
 
-# config Feature
+    # config Feature
     parser.add_argument(
         '--window_size_ms',
         type=float,
@@ -111,7 +118,7 @@ def set(configs={}):
         default=configs.get('n_coeffs', 40),
         help='How many bins to use for the feature fingerprint')
 
-# config CNN
+    # config CNN
     parser.add_argument(
         '--model_architecture',
         type=str,
@@ -153,13 +160,14 @@ def set(configs={}):
         default=configs.get('activation', 'relu'),
         help='What activation function type to use.')
 
-# config FC
+    # config FC
     parser.add_argument(
         '--hidden_units',
         type=list,
         default=configs.get('hidden_units', [25, 25]),
         help='Number of units in hidden layers.')
 
+    # config summary and checkpoint load
     parser.add_argument(
         '--summary_step_interval',
         type=int,
@@ -174,6 +182,6 @@ def set(configs={}):
         '--start_checkpoint',
         type=str,
         default=configs.get('start_checkpoint', ''),
-        help='If specified, restore this pretrained model before any training.')
+        help='If specified, restore pretrained model before any training.')
 
     return parser.parse_known_args()

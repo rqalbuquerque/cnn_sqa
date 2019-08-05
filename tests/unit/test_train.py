@@ -43,18 +43,18 @@ class TrainTest(test.TestCase):
       writer = csv.DictWriter(csv_file, fieldnames=['file', 'score'])
       writer.writeheader()
       for label in labels:
-        dir_name = os.path.join(root_dir, label)
         for i in range(how_many):
-          file_path = os.path.join(dir_name, "some_audio_%d.wav" % i)
+          file_path = os.path.join(label, "some_audio_%d.wav" % i)
           writer.writerow({'file': file_path, 'score': float(i % 5 + 1)})
-
-  def _getDefaultFlags(self, input_dir, output_dir):
+  
+  def _getDefaultFlags(self, input_dir, csv_path, output_dir):
     flags = {
         'data_dir': input_dir,
+        'data_file': csv_path,
         'output_dir': output_dir,
         'enable_checkpoint_save': True,
-        'testing_percentage': 10,
         'validation_percentage': 10,
+        'testing_percentage': 10,
         'batch_size': 3,
         'training_steps': [10, 5],
         'learning_rate': [0.01, 0.005],
@@ -76,7 +76,8 @@ class TrainTest(test.TestCase):
         'hidden_units': [5, 5],
         'summary_step_interval': 5,
         'eval_step_interval': 10,
-        'start_checkpoint': ''
+        'start_checkpoint': '',
+        'data_aug_columns': []
         }
     return DictStruct(**flags)
 
@@ -90,46 +91,20 @@ class TrainTest(test.TestCase):
       rmse = sess.run(loss)
       self.assertNear(expected, rmse, 0.0001)
 
-  def testGenAugmentedData(self):
-    names = ['f1.wav', 'f2.wav']
-    data = [[1, 2, 3, 4, 5], [4, 3, 2, 1, 0]]
-    scores = [1.0, 2.0]
-    modes = ['flip', 'random_circular_shift']
-
-    aug_names, aug_data, aug_scores = train.gen_augmented_data(
-        names, data, scores, modes)
-
-    self.assertEqual(['f1.wav', 
-                      'f2.wav',
-                      'f1_augmented_by_flip.wav', 
-                      'f2_augmented_by_flip.wav',
-                      'f1_augmented_by_random_circular_shift.wav', 
-                      'f2_augmented_by_random_circular_shift.wav'], aug_names)
-    self.assertEqual([sorted(data) for data in aug_data],
-                     [[1, 2, 3, 4, 5], 
-                      [0, 1, 2, 3, 4],
-                      [1, 2, 3, 4, 5], 
-                      [0, 1, 2, 3, 4], 
-                      [1, 2, 3, 4, 5], 
-                      [0, 1, 2, 3, 4]])
-    self.assertEqual([1.0, 2.0, 1.0, 2.0, 1.0, 2.0], aug_scores)
-
   def testTrain(self):
     tmp_dir = self.get_temp_dir()
-    database = os.path.join(tmp_dir, "database")
+    database = os.path.join(tmp_dir, "database/")
     output_dir = os.path.join(tmp_dir, "output")
+    csv_path = os.path.join(database, "scores.csv")
     os.mkdir(database)
     os.mkdir(output_dir)
     self._saveWavFolders(database, ["a", "b", "c"], 10)
     self._saveCsvFile(database, ["a", "b", "c"], 10)
-    csv_path = os.path.join(database, "scores.csv")
-    flags = self._getDefaultFlags(database, output_dir)
+    flags = self._getDefaultFlags(database, csv_path, output_dir)
     train.main([flags, 'test'])
 
-    self.assertTrue(gfile.Exists(
-        os.path.join(output_dir, 'run-test/config.json')))
-    self.assertTrue(gfile.Exists(
-        os.path.join(output_dir, 'run-test/checkpoint/checkpoint')))
+    self.assertTrue(gfile.Exists(os.path.join(output_dir, 'run-test/config.json')))
+    self.assertTrue(gfile.Exists(os.path.join(output_dir, 'run-test/checkpoint/checkpoint')))
     self.assertTrue(gfile.Exists(
         os.path.join(output_dir, 'run-test/checkpoint/' + flags.model_architecture + '.ckpt-15.meta')))
     self.assertTrue(gfile.Exists(

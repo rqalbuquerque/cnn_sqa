@@ -5,11 +5,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from datetime import datetime
-
-import time
-import re
 import os
+from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
@@ -18,7 +15,6 @@ from src import utils
 from src import config
 from src import input_data
 from src import models
-from src import data_augmentation
 
 
 def create_output_path(output_dir, config_name=''):
@@ -28,30 +24,16 @@ def create_output_path(output_dir, config_name=''):
         now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         return output_dir + '/run-' + now
 
+
 def apply_optimizer(learning_rate):
   with tf.name_scope('optimizer'):
     return tf.train.GradientDescentOptimizer(learning_rate)
+
 
 def apply_loss(gt_input, estimated):
   with tf.name_scope('loss'):
     return tf.sqrt(tf.reduce_mean(tf.squared_difference(gt_input, estimated)))
 
-def gen_augmented_data_by_mode(names, data, scores, mode):
-  aug_data, aug_scores, aug_names = [], [], []
-  for i in range(len(data)):
-    aug_data.append(data_augmentation.apply(data[i], mode))
-    aug_names.append(utils.add_suffix_in_filename(names[i], '_augmented_by_' + mode))
-    aug_scores.append(scores[i])
-  return aug_names, aug_data, aug_scores
-
-def gen_augmented_data(names, data, scores, modes):
-  with tf.name_scope('data_augmentation'):
-    aug_names, aug_data, aug_scores = names, data, scores
-    for mode in modes:
-      new_names, new_data, new_scores = gen_augmented_data_by_mode(
-          names, data, scores, mode)
-      aug_names,aug_data,aug_scores=(aug_names+new_names), (aug_data+new_data), (aug_scores+new_scores)
-    return aug_names, aug_data, aug_scores
 
 def main(argv):
     # Get flags
@@ -66,7 +48,7 @@ def main(argv):
     # Start a new TensorFlow session.
     sess = tf.InteractiveSession()
 
-    # Begin by making sure we have the training data we need.
+    # Audio processor 
     model_settings = models.prepare_model_settings(
         FLAGS.sample_rate,
         FLAGS.clip_duration_ms,
@@ -84,15 +66,23 @@ def main(argv):
         FLAGS.hidden_units)
 
     audio_processor = input_data.AudioProcessor(model_settings)
-    audio_processor.prepare_data_index_from_csv_file(
-        FLAGS.data_dir + '/scores.csv', FLAGS.validation_percentage, FLAGS.testing_percentage)
+    audio_processor.index_from_csv(
+        FLAGS.data_dir,
+        FLAGS.data_file,
+        FLAGS.validation_percentage,
+        FLAGS.testing_percentage,
+        FLAGS.data_aug_columns
+    )
 
-    # print size of training, validation
-    tf.logging.info("***************** DataBase Length *****************")
+    # print size of training, validation and testing
+    tf.logging.info("")
+    tf.logging.info("************** DataBase Length **************")
     tf.logging.info("Training length: " +
-                    str(audio_processor.get_size_by_partition('training')))
+                    str(audio_processor.get_size_by_index('training')))
     tf.logging.info("Validation length: " +
-                    str(audio_processor.get_size_by_partition('validation')))
+                    str(audio_processor.get_size_by_index('validation')))
+    tf.logging.info("Testing length: " +
+                    str(audio_processor.get_size_by_index('testing')))
 
     # Input
     fingerprint_input = tf.placeholder(
@@ -124,7 +114,7 @@ def main(argv):
 
     train_writer = tf.summary.FileWriter(
         output_dir + '/summary/train', sess.graph)
-    validation_writer = tf.summary.FileWriter(
+    val_writer = tf.summary.FileWriter(
         output_dir + '/summary/validation')
 
     if len(FLAGS.training_steps) != len(FLAGS.learning_rate):
@@ -137,8 +127,6 @@ def main(argv):
     start_step = 1
 
     tf.logging.info('"***************** Training *****************')
-    tf.logging.info('Training from step: %d ', start_step)
-
     training_steps_max = np.sum(FLAGS.training_steps)
     for training_step in range(start_step, training_steps_max + 1):
         # Figure out what the current learning rate is.
@@ -150,12 +138,8 @@ def main(argv):
                 break
 
         # Pull the audio samples we'll use for training.
-        train_names, train_fingerprints, train_gt_scores = audio_processor.get_data_by_partition(
+        train_names, train_fingerprints, train_gt_scores = audio_processor.get_data_by_index(
             FLAGS.batch_size, 0, 'training', sess)
-
-        # Apply data augmentation
-        train_names, train_fingerprints, train_gt_scores = gen_augmented_data(
-            train_names, train_fingerprints, train_gt_scores, FLAGS.data_aug_algorithms)
 
         # Run the graph with this batch of training data.
         train_summary, train_rmse, _, _ = sess.run(
@@ -179,15 +163,15 @@ def main(argv):
             train_writer.add_summary(train_summary, training_step)
 
         if (training_step % FLAGS.eval_step_interval) == 0 or (training_step == training_steps_max):
-            tf.logging.info('***************** Validation *****************')
+            tf.logging.info('***************** Validation ****************')
 
-            set_size = audio_processor.get_size_by_partition('validation')
+            set_size = audio_processor.get_size_by_index('validation')
             total_rmse = 0
             weights = np.array([], dtype=np.float32)
             values = np.array([], dtype=np.float32)
 
             for i in range(0, set_size, FLAGS.batch_size):
-                _, val_fingerprints, val_ground_truth = audio_processor.get_data_by_partition(
+                _, val_fingerprints, val_ground_truth = audio_processor.get_data_by_index(
                     FLAGS.batch_size, i, 'validation', sess)
 
                 validation_summary, validation_rmse = sess.run(
@@ -204,24 +188,27 @@ def main(argv):
                 weights = np.append(
                     weights, val_fingerprints.shape[0] / set_size)
                 values = np.append(values, validation_rmse)
+                tf.logging.info('i=%d: rmse = %.2f' % (i, validation_rmse))
 
             weighted_rmse = np.dot(values, weights)
             weighted_rmse_summary = tf.Summary(
                 value=[tf.Summary.Value(tag='rmse', simple_value=weighted_rmse)])
-            validation_writer.add_summary(
+            val_writer.add_summary(
                 weighted_rmse_summary, training_step)
             tf.logging.info('weighted rmse = %.2f (N=%d)' %
                             (weighted_rmse, set_size))
-            tf.logging.info('***************** ********** *****************')
+            
+            if training_step < training_steps_max:
+              tf.logging.info('"***************** Training *****************')
       
     tf.logging.info('****************** Testing ******************')
-    set_size = audio_processor.get_size_by_partition('testing')
+    set_size = audio_processor.get_size_by_index('testing')
     weights = np.array([], dtype=np.float32)
     values = np.array([], dtype=np.float32)
 
     for i in range(0, set_size, FLAGS.batch_size):
-        _, test_fingerprints, test_ground_truth = audio_processor.get_data_by_partition(
-            FLAGS.batch_size, i, 'testing')
+        _, test_fingerprints, test_ground_truth = audio_processor.get_data_by_index(
+            FLAGS.batch_size, i, 'testing', sess)
 
         testing_summary, test_rmse = sess.run(
             [
@@ -241,7 +228,7 @@ def main(argv):
     weighted_rmse = np.dot(values, weights)
     tf.logging.info('weighted rmse = %.2f (N=%d)' %
                     (weighted_rmse, set_size))
-    tf.logging.info('***************** ********** *****************')
+    tf.logging.info('***************** ********* *****************')
 
     # Save the model
     if FLAGS.enable_checkpoint_save:
@@ -254,9 +241,9 @@ def main(argv):
                    global_step=training_steps_max)
         FLAGS.start_checkpoint += '-' + str(training_steps_max)
 
-    config.save(output_dir, FLAGS.__dict__, )
+    config.save(output_dir, FLAGS.__dict__)
     train_writer.close()
-    validation_writer.close()
+    val_writer.close()
     sess.close()
 
 if __name__ == '__main__':

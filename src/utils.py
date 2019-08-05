@@ -62,7 +62,7 @@ def read_csv_as_dict(csv_path, delimiter, fieldnames=None):
     """
     data = []
     with open(csv_path) as csv_file:
-        reader = csv.DictReader(csv_file, delimiter=delimiter, fieldnames=fieldnames)
+        reader = csv.DictReader(csv_file, delimiter=delimiter)
         data = [row for row in reader]
     return data
 

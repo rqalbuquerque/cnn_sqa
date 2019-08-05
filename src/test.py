@@ -48,7 +48,7 @@ def main(argv):
         FLAGS.hidden_units)
 
     audio_processor = input_data.TFAudioProcessor(model_settings, sess)
-    audio_processor.index_from_dir(input_path, '.wav')
+    audio_processor.load_samples_from_dir(input_path, '.wav')
 
     tf.logging.info('***************** Testing *****************')
     tf.logging.info('Testing on config: ' + config_path)
