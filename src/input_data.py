@@ -199,8 +199,11 @@ class AudioProcessor:
                                     for s in data_index[index]]
 
     def get_size(self):
-        return len(self.data)
+      return len(self.data)
         
+    def get_samples(self):
+      return self.data
+    
     def get_size_by_index(self, index):
       if index in {'training', 'validation', 'testing'}:
         return len(self.data[index])
@@ -211,7 +214,7 @@ class AudioProcessor:
       if index in {'training', 'validation', 'testing'}:
         return self.data[index]
       else:
-        return self.data
+        raise Exception('Invalid index!')
 
     def get_data(self, qty, offset, sess):
         """Gather samples from the data set, applying transformations as needed.

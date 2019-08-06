@@ -84,9 +84,9 @@ class InputDataTest(test.TestCase):
     audio_processor.index_from_dir(database)
 
     self.assertEqual(3, audio_processor.get_size())
-    self.assertIn(expected_index[0], audio_processor.get_index())
-    self.assertIn(expected_index[1], audio_processor.get_index())
-    self.assertIn(expected_index[2], audio_processor.get_index())
+    self.assertIn(expected_index[0], audio_processor.get_samples())
+    self.assertIn(expected_index[1], audio_processor.get_samples())
+    self.assertIn(expected_index[2], audio_processor.get_samples())
 
 
   def testIndexFromCSV(self):
