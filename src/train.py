@@ -11,10 +11,12 @@ from datetime import datetime
 import numpy as np
 import tensorflow as tf
 
-from src import utils
-from src import config
-from src import input_data
-from src import models
+import sys
+
+import utils
+import config
+import input_data
+import models
 
 
 def create_output_path(output_dir, config_name=''):

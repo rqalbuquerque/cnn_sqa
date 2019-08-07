@@ -1,6 +1,0 @@
-label,value1,value2,value3
-str,test
-int,123
-float, 1.24
-list,1,2,3
-dict,key,value

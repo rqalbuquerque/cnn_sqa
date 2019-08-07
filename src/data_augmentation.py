@@ -10,8 +10,8 @@ import glob
 import numpy as np
 import argparse
 
-from src import utils
-from src import input_data
+import utils
+import input_data
 
 def flip(data):
     """Flip the speech data along ot time axis.

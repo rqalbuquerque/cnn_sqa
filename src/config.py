@@ -25,21 +25,21 @@ def set(configs={}):
         type=str,
         default=configs.get(
             'data_dir',
-            '/home/rqa/renato/git/cnn_sqa/databases/speech_noise_dataset_suppl23/suppl23_mix_speech_noise/'),
+            '/home/rqa/rqa/Workspace/Databases/Mixed/dataset_suppl23_voip-tcd/expanded/'),
         help='Where to get the speech training data.')
     parser.add_argument(
         '--data_file',
         type=str,
         default=configs.get(
             'data_file',
-            '/home/rqa/renato/git/cnn_sqa/databases/speech_noise_dataset_suppl23/suppl23_mix_speech_noise/scores.csv'),
+            '/home/rqa/rqa/Workspace/Databases/Mixed/dataset_suppl23_voip-tcd/expanded/scores.csv'),
         help='Where to read data samples.')
     parser.add_argument(
         '--output_dir',
         type=str,
         default=configs.get(
             'output_dir',
-            '/home/rqa/renato/git/cnn_sqa/logs/test'),
+            '/home/rqa/rqa/Workspace/git/cnn_sqa/logs/test/'),
         help='Where to save summary logs for TensorBoard.')
 
     # checkpoint saving
@@ -53,12 +53,12 @@ def set(configs={}):
     parser.add_argument(
         '--validation_percentage',
         type=int,
-        default=configs.get('validation_percentage', 0.5),
+        default=configs.get('validation_percentage', 0.01),
         help='What percentage of wavs to use as a validation set.')
     parser.add_argument(
         '--testing_percentage',
         type=int,
-        default=configs.get('testing_percentage', 95),
+        default=configs.get('testing_percentage', 0.95),
         help='What percentage of wavs to use as a test set.')
     parser.add_argument(
         '--batch_size',
@@ -93,7 +93,7 @@ def set(configs={}):
     parser.add_argument(
         '--data_aug_columns',
         type=list,
-        default=configs.get('data_aug_columns', ['data_aug_1', 'data_aug_2']),
+        default=configs.get('data_aug_columns', []),
         help='Data augmentation columns to load')
 
     # config Feature
@@ -122,7 +122,7 @@ def set(configs={}):
     parser.add_argument(
         '--model_architecture',
         type=str,
-        default=configs.get('model_architecture', 'slim_conv'),
+        default=configs.get('model_architecture', 'conv'),
         help='What model architecture to use')
     parser.add_argument(
         '--filter_width',
@@ -158,7 +158,7 @@ def set(configs={}):
         '--activation',
         type=str,
         default=configs.get('activation', 'relu'),
-        help='What activation function type to use.')
+        help='What activation function to use.')
 
     # config FC
     parser.add_argument(
@@ -176,7 +176,7 @@ def set(configs={}):
     parser.add_argument(
         '--eval_step_interval',
         type=int,
-        default=configs.get('eval_step_interval', 10),
+        default=configs.get('eval_step_interval', 20),
         help='How often to evaluate the training results.')
     parser.add_argument(
         '--start_checkpoint',

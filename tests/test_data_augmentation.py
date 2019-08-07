@@ -2,7 +2,7 @@ import mock
 import unittest
 import numpy
 
-from src import data_augmentation
+import data_augmentation
 
 class TestFlip(unittest.TestCase):
   def test_flip_empty_list(self):

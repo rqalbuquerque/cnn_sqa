@@ -7,10 +7,10 @@ import datetime
 import os
 import csv
 
-from src import input_data
-from src import models
-from src import train
-from src import utils
+import input_data
+import models
+import train
+import utils
 
 
 class DictStruct(object):
@@ -94,7 +94,7 @@ class TrainTest(test.TestCase):
   def testTrain(self):
     tmp_dir = self.get_temp_dir()
     database = os.path.join(tmp_dir, "database/")
-    output_dir = os.path.join(tmp_dir, "output")
+    output_dir = os.path.join(tmp_dir, "output/")
     csv_path = os.path.join(database, "scores.csv")
     os.mkdir(database)
     os.mkdir(output_dir)

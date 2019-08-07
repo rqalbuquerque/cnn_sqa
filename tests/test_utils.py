@@ -1,6 +1,29 @@
 import unittest
+import os
+import tempfile
+import json
+import csv
 
-from src import utils
+import utils
+
+def _saveFile(name, content):
+  tmp_file = tempfile.gettempdir() + '/' + name
+  with open(tmp_file, 'w') as file:
+    file.write(content)
+    file.close()
+  return tmp_file
+
+def _saveCsv(name, fieldnames, dict_data):
+  tmp_file = tempfile.gettempdir() + '/' + name
+  with open(tmp_file, 'w') as csvfile:
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+    for data in dict_data:
+        writer.writerow(data)
+  return tmp_file
+
+def _removeFile(name):
+  os.remove(name)
 
 class TestAddSuffixInFilename(unittest.TestCase):
   def test_insert_with_extension(self):
@@ -31,16 +54,22 @@ class TestReadJsonAsDict(unittest.TestCase):
     """
     Test with invalid file type.
     """
+    tmp_file = _saveFile(
+      'test_basic.py',
+      'a={"str":"test","int":123,"float":1.24,"list":[1,2,3],"dict":{"key":"value"}}')
     with self.assertRaises(ValueError):
-      result = utils.read_json_as_dict("tests/fixtures/test_basic.py")
+      result = utils.read_json_as_dict(tmp_file)
+    _removeFile(tmp_file)
 
   def test_valid_json(self):
     """
     Test with valid json file.
     """
     expected = {"str": "test", "int": 123, "float": 1.24, "list": [1,2,3], "dict": {"key": "value"}}
-    result = utils.read_json_as_dict("tests/fixtures/test_basic.json")
+    tmp_file = _saveFile('test_basic.json', json.dumps(expected))
+    result = utils.read_json_as_dict(tmp_file)
     self.assertEqual(expected, result)
+    _removeFile(tmp_file)
 
 class TestReadCsvAsDict(unittest.TestCase):
   def test_nonexistent_file(self):
@@ -48,21 +77,21 @@ class TestReadCsvAsDict(unittest.TestCase):
     Test with nonexistent file.
     """
     with self.assertRaises(IOError):
-      result = utils.read_csv_as_dict("tests/fixtures/nonexistent.file", ',')
+      result = utils.read_csv_as_dict("nonexistent.file", ',')
 
   def test_valid_file(self):
     """
     Test with valid csv file.
     """
     expected = [
-      {'value3': None, 'value2': None, 'value1': 'test', 'label': 'str'}, 
-      {'value3': None, 'value2': None, 'value1': '123', 'label': 'int'}, 
-      {'value3': None, 'value2': None, 'value1': ' 1.24', 'label': 'float'}, 
-      {'value3': '3', 'value2': '2', 'value1': '1', 'label': 'list'}, 
-      {'value3': None, 'value2': 'value', 'value1': 'key', 'label': 'dict'}
+      {'col2': 'test2', 'col1': 'test1', 'label': 'str'},
+      {'col2': '2.5', 'col1': '1.24', 'label': 'float'},
+      {'col2': '2', 'col1': '1', 'label': 'list'} 
     ]
-    result = utils.read_csv_as_dict("tests/fixtures/test_basic.csv", ',')
+    tmp_file = _saveCsv('test_basic.csv', expected[0].keys(), expected)
+    result = utils.read_csv_as_dict(tmp_file, ',')
     self.assertEqual(expected, result)
+    _removeFile(tmp_file)
 
 
 class TestFindByExtension(unittest.TestCase):
@@ -77,8 +106,10 @@ class TestFindByExtension(unittest.TestCase):
     """
     Test with valid directory.
     """
+    tmp_file = _saveFile('test_basic.json', "")
+    tmp_dir = os.path.dirname(tmp_file)
     expected = ['test_basic.json']
-    result = utils.find_by_extension("tests/fixtures", "json")
+    result = utils.find_by_extension(tmp_dir, "json")
     self.assertEqual(expected, result)
 
 if __name__ == '__main__':

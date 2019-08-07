@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.platform import test
-from src import models
+import models
 
 class ModelsTest(test.TestCase):
   def _modelSettings(self):

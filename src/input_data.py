@@ -10,7 +10,7 @@ import numpy as np
 from six.moves import xrange
 from sklearn.model_selection import train_test_split
 
-from src import utils
+import utils
 
 import tensorflow as tf
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio

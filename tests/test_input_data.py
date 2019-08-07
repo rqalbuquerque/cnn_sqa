@@ -6,8 +6,8 @@ import tensorflow as tf
 from tensorflow.python.platform import test
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 
-from src import input_data
-from src import models
+import input_data
+import models
 
 class InputDataTest(test.TestCase):
   def _getWavData(self):
@@ -101,7 +101,7 @@ class InputDataTest(test.TestCase):
       {'file': database + "c/some_audio_1.wav", 'score': 2.0},
     ]
     audio_processor = input_data.AudioProcessor(self._model_settings())
-    audio_processor.index_from_csv(database, csv_path, 0.33, 0)
+    audio_processor.index_from_csv(database, csv_path, 0.33, 0.0)
     training_index = audio_processor.get_index('training')
     validation_index = audio_processor.get_index('validation')
 
@@ -117,6 +117,7 @@ class InputDataTest(test.TestCase):
     self.assertIn(full_index[3], training_index + validation_index)
     self.assertIn(full_index[4], training_index + validation_index)
     self.assertIn(full_index[5], training_index + validation_index)
+
 
   def testIndexWithDataAugmentation(self):
     database, csv_path = self._basicConfig(["a", "b"], 2)

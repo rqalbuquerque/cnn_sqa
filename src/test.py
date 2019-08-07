@@ -9,10 +9,10 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from src import utils
-from src import config
-from src import input_data
-from src import models
+import utils
+import config
+import input_data
+import models
 
 
 def main(argv):

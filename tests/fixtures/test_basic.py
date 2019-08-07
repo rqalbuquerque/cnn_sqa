@@ -1,1 +1,0 @@
-a = {"str": "test", "int": 123, "float": 1.24, "list": [1,2,3], "dict": {"key": "value"}}
