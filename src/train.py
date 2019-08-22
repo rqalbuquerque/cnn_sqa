@@ -232,6 +232,21 @@ def main(argv):
                     (weighted_rmse, set_size))
     tf.logging.info('***************** ********* *****************')
 
+    # Save cross validation partitions 
+    utils.create_dir(output_dir + '/cross_val_sets')
+    rows = audio_processor.get_index('training')
+    utils.save_dict_as_csv(
+      output_dir + '/cross_val_sets/training.csv', ',', rows[0].keys(), rows)
+    rows = audio_processor.get_index('validation')
+    utils.save_dict_as_csv(
+        output_dir + '/cross_val_sets/validation.csv', ',', rows[0].keys(), rows)
+    rows = audio_processor.get_index('testing')
+    utils.save_dict_as_csv(
+        output_dir + '/cross_val_sets/testing.csv', ',', rows[0].keys(), rows)
+
+    # Save configuration
+    config.save(output_dir, FLAGS.__dict__)
+
     # Save the model
     if FLAGS.enable_checkpoint_save:
         utils.create_dir(output_dir + '/checkpoint')
@@ -243,7 +258,6 @@ def main(argv):
                    global_step=training_steps_max)
         FLAGS.start_checkpoint += '-' + str(training_steps_max)
 
-    config.save(output_dir, FLAGS.__dict__)
     train_writer.close()
     val_writer.close()
     sess.close()

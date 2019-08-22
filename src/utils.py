@@ -62,11 +62,27 @@ def read_csv_as_dict(csv_path, delimiter, fieldnames=None):
     """
     data = []
     with open(csv_path) as csv_file:
-        reader = csv.DictReader(csv_file, delimiter=delimiter)
+        reader = csv.DictReader(
+            csv_file, delimiter=delimiter, fieldnames=fieldnames)
         data = [row for row in reader]
     return data
 
+def save_dict_as_csv(csv_path, delimiter, fieldnames, rows):
+    """It dictionary as csv.
 
+    Args:
+      csv_path: Path to csv file.
+      delimiter: Delimiter of csv.
+      fieldnames: Header field names.
+      dict: Dictionary mapping header to value.
+    """
+    with open(csv_path, 'w') as csv_file:
+      writer = csv.DictWriter(
+          csv_file, delimiter=delimiter, fieldnames=fieldnames)
+      writer.writeheader()
+      for row in rows:
+        writer.writerow(row)
+            
 def read_json_as_dict(path):
     """It reads json as dictionary.
 

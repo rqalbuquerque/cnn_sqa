@@ -35,9 +35,7 @@ class TestRandomCircularShift(unittest.TestCase):
     """
     Test with invalid data type.
     """
-    test_input = "test"
-    with self.assertRaises(ValueError):
-      result = data_augmentation.rcs(test_input)
+    self.assertEqual("test", data_augmentation.rcs("test"))
 
   def test_random_circular_shift_list(self):
     """

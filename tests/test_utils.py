@@ -22,6 +22,17 @@ def _saveCsv(name, fieldnames, dict_data):
         writer.writerow(data)
   return tmp_file
 
+def _loadCsv(csv_path, delimiter, fieldnames):
+  data = []
+  with open(csv_path) as csv_file:
+    reader = csv.DictReader(
+        csv_file, delimiter=delimiter, fieldnames=fieldnames)
+    data = [row for row in reader]
+  return data
+
+def _getTempPath(file_name):
+  return tempfile.gettempdir() + '/' + file_name
+
 def _removeFile(name):
   os.remove(name)
 
@@ -93,13 +104,48 @@ class TestReadCsvAsDict(unittest.TestCase):
     self.assertEqual(expected, result)
     _removeFile(tmp_file)
 
+class TestSaveDictAsCsv(unittest.TestCase):
+  def test_invalid_path(self):
+    """
+    Test with invalid csv path.
+    """
+    with self.assertRaises(IOError):
+      utils.save_dict_as_csv("invalid_path/test.csv",
+                             ';', [{'t1': 'test1'}], ['t1'])
+      
+  def test_unmatched_fields(self):
+    """
+    Test unmatched header fields. 
+    """
+    temp_path = _getTempPath('test.csv')
+    fieldnames = ['t1', 't2']
+    rows = [{'t1': 1, 't2': 'hey'}, {'t1': 2, 't3': 1.0}]
+    with self.assertRaises(ValueError):
+      utils.save_dict_as_csv(temp_path, ';', fieldnames, rows)
+
+  def test_valid_fields(self):
+    """
+    Test valid fields. 
+    """
+    temp_path = _getTempPath('test.csv')
+    fieldnames = ['t1', 't2']
+    rows = [{'t1': 1, 't2': 'hey'},
+            {'t1': 2, 't2': 2.3}, 
+            {'t2': True}]
+    utils.save_dict_as_csv(temp_path, ';', fieldnames, rows)
+    
+    expected_rows = [{'t1': '1', 't2': 'hey'},
+                     {'t1': '2', 't2': '2.3'},
+                     {'t1': '', 't2': 'True'}]
+    rows = _loadCsv(temp_path, ';', None)
+    self.assertEquals(expected_rows, rows)
 
 class TestFindByExtension(unittest.TestCase):
   def test_not_found_extension(self):
     """
     Test without files by extension.
     """
-    result = utils.find_by_extension("tests/fixtures/test_basic", "not_found_extension")
+    result = utils.find_by_extension("./tests", "not_found_extension")
     self.assertEqual([], result)
 
   def test_valid_dir(self):

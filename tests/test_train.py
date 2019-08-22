@@ -111,8 +111,13 @@ class TrainTest(test.TestCase):
         os.path.join(output_dir, 'run-test/checkpoint/' + flags.model_architecture + '.ckpt-15.data-00000-of-00001')))
     self.assertTrue(gfile.Exists(
         os.path.join(output_dir, 'run-test/checkpoint/' + flags.model_architecture + '.ckpt-15.index')))
+    
     self.assertTrue(os.path.exists(os.path.join(output_dir, 'run-test/summary/train')))
     self.assertTrue(os.path.exists(os.path.join(output_dir, 'run-test/summary/validation')))
+
+    self.assertTrue(os.path.exists(os.path.join(output_dir, 'run-test/cross_val_sets/training.csv')))
+    self.assertTrue(os.path.exists(os.path.join(output_dir, 'run-test/cross_val_sets/validation.csv')))
+    self.assertTrue(os.path.exists(os.path.join(output_dir, 'run-test/cross_val_sets/testing.csv')))
 
 if __name__ == '__main__':
   tf.test.main()

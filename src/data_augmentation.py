@@ -32,7 +32,7 @@ def rcs(data):
       output: output shifted sample
     """
     [index] = np.random.randint(int(0.1*len(data)), int(0.9*len(data)), 1)
-    return np.concatenate((data[index:], data[0:index])).tolist()
+    return np.roll(data,index + 1).tolist()
 
 
 def process(data, mode):
