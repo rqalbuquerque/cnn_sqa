@@ -92,6 +92,9 @@ def cross_val_split(samples, val_percentage, test_percentage):
     A dictionary with the partitions (training, validation and testing
     populated with samples.
   """
+  val_percentage = max(val_percentage, 0.000000001)
+  test_percentage = max(test_percentage, 0.000000001)
+
   data_index = {'training': [], 'validation': [], 'testing': []}
   data_index['training'], val_test_samples = train_test_split(
       samples, test_size=val_percentage + test_percentage)
