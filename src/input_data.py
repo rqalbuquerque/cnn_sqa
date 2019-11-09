@@ -178,8 +178,7 @@ class AudioProcessor:
 
     def index_from_dir(self, data_dir):
         samples = load_samples_from_dir(data_dir, 'wav')
-        self.data = [{'file': data_dir + "/" + name}
-                           for name in samples]
+        self.data = [{'file': data_dir + "/" + name} for name in samples]
 
     def index_from_csv(self, data_dir, file_path, val_percentage, test_percentage, data_aug_columns=[]):
         # Load

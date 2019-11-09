@@ -36,7 +36,6 @@ def apply_loss(gt_input, estimated):
   with tf.name_scope('loss'):
     return tf.sqrt(tf.reduce_mean(tf.squared_difference(gt_input, estimated)))
 
-
 def main(argv):
     # Get flags
     if len(argv) == 1:
@@ -235,14 +234,17 @@ def main(argv):
     # Save cross validation partitions 
     utils.create_dir(output_dir + '/cross_val_sets')
     rows = audio_processor.get_index('training')
-    utils.save_dict_as_csv(
-      output_dir + '/cross_val_sets/training.csv', ',', rows[0].keys(), rows)
+    if(rows):
+      utils.save_dict_as_csv(
+        output_dir + '/cross_val_sets/training.csv', ',', rows[0].keys(), rows)
     rows = audio_processor.get_index('validation')
-    utils.save_dict_as_csv(
-        output_dir + '/cross_val_sets/validation.csv', ',', rows[0].keys(), rows)
+    if(rows):
+      utils.save_dict_as_csv(
+          output_dir + '/cross_val_sets/validation.csv', ',', rows[0].keys(), rows)
     rows = audio_processor.get_index('testing')
-    utils.save_dict_as_csv(
-        output_dir + '/cross_val_sets/testing.csv', ',', rows[0].keys(), rows)
+    if(rows):
+      utils.save_dict_as_csv(
+          output_dir + '/cross_val_sets/testing.csv', ',', rows[0].keys(), rows)
 
     # Save configuration
     config.save(output_dir, FLAGS.__dict__)
