@@ -85,6 +85,27 @@ def main(argv):
     tf.logging.info("Testing length: " +
                     str(audio_processor.get_size_by_index('testing')))
 
+    output_dir = create_output_path(FLAGS.output_dir, config_name)
+    utils.create_dir(output_dir)
+
+    # Save configuration
+    config.save(output_dir, FLAGS.__dict__)
+
+    # Save cross validation partitions 
+    utils.create_dir(output_dir + '/cross_val_sets')
+    rows = audio_processor.get_index('training')
+    if(rows):
+      utils.save_dict_as_csv(
+        output_dir + '/cross_val_sets/training.csv', ',', rows[0].keys(), rows)
+    rows = audio_processor.get_index('validation')
+    if(rows):
+      utils.save_dict_as_csv(
+          output_dir + '/cross_val_sets/validation.csv', ',', rows[0].keys(), rows)
+    rows = audio_processor.get_index('testing')
+    if(rows):
+      utils.save_dict_as_csv(
+          output_dir + '/cross_val_sets/testing.csv', ',', rows[0].keys(), rows)
+
     # Input
     fingerprint_input = tf.placeholder(
         tf.float32, [None, model_settings['fingerprint_size']], name='fingerprint_input')
@@ -111,7 +132,6 @@ def main(argv):
 
     # Merge all the summaries and create file writers
     merged_summaries = tf.summary.merge_all()
-    output_dir = create_output_path(FLAGS.output_dir, config_name)
 
     train_writer = tf.summary.FileWriter(
         output_dir + '/summary/train', sess.graph)
@@ -230,24 +250,6 @@ def main(argv):
     tf.logging.info('weighted rmse = %.2f (N=%d)' %
                     (weighted_rmse, set_size))
     tf.logging.info('***************** ********* *****************')
-
-    # Save cross validation partitions 
-    utils.create_dir(output_dir + '/cross_val_sets')
-    rows = audio_processor.get_index('training')
-    if(rows):
-      utils.save_dict_as_csv(
-        output_dir + '/cross_val_sets/training.csv', ',', rows[0].keys(), rows)
-    rows = audio_processor.get_index('validation')
-    if(rows):
-      utils.save_dict_as_csv(
-          output_dir + '/cross_val_sets/validation.csv', ',', rows[0].keys(), rows)
-    rows = audio_processor.get_index('testing')
-    if(rows):
-      utils.save_dict_as_csv(
-          output_dir + '/cross_val_sets/testing.csv', ',', rows[0].keys(), rows)
-
-    # Save configuration
-    config.save(output_dir, FLAGS.__dict__)
 
     # Save the model
     if FLAGS.enable_checkpoint_save:
