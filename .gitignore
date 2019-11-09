@@ -1,0 +1,6 @@
+
+*.pyc
+*.out
+configurations/
+logs/
+utils.txt
