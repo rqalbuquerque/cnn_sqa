@@ -96,7 +96,7 @@ def cross_val_split(samples, val_percentage, test_percentage):
   data_index['training'], val_test_samples = train_test_split(
       samples, test_size=val_percentage + test_percentage)
   data_index['validation'], data_index['testing'] = train_test_split(
-      val_test_samples, test_size=test_percentage)
+      val_test_samples, test_size=test_percentage/(val_percentage + test_percentage))
   return data_index
 
 
