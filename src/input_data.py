@@ -5,6 +5,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import hashlib
+import os.path
 import random
 import numpy as np
 from six.moves import xrange
@@ -15,6 +17,7 @@ import utils
 import tensorflow as tf
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 from tensorflow.python.ops import io_ops
+from tensorflow.python.util import compat
 
 def load_wav_file(filename):
     """Loads an audio file and returns a float PCM-encoded array of samples.
@@ -81,6 +84,30 @@ def load_samples_from_csv(csv_file, shuffle=False):
     random.shuffle(samples) if shuffle else None
     return samples
 
+
+def which_set(filename, validation_percentage, testing_percentage):
+  """
+  Args:
+    filename: File path of the data sample.
+    validation_percentage: How much of the data set to use for validation.
+    testing_percentage: How much of the data set to use for testing.
+  Returns:
+    String, one of 'training', 'validation', or 'testing'.
+  """
+  MAX_NUM_WAVS = 2**27 - 1
+
+  hash_name = os.path.basename(filename)
+  hash_name_hashed = hashlib.sha1(compat.as_bytes(hash_name)).hexdigest()
+  percentage_hash = ((int(hash_name_hashed, 16) %
+                      (MAX_NUM_WAVS + 1)) * (100.0 / MAX_NUM_WAVS))
+  if percentage_hash < validation_percentage:
+    result = 'validation'
+  elif percentage_hash < (testing_percentage + validation_percentage):
+    result = 'testing'
+  else:
+    result = 'training'
+  return result
+
 def cross_val_split(samples, val_percentage, test_percentage):
   """Creates cross validation partitions from list of samples.
 
@@ -93,21 +120,14 @@ def cross_val_split(samples, val_percentage, test_percentage):
     populated with samples.
   """
 
-  if(val_percentage < 0 or test_percentage < 0 or val_percentage + test_percentage > 1):
+  if(val_percentage < 0 or test_percentage < 0 or val_percentage + test_percentage > 100):
     raise Exception('Invalid cross validation percentages!')
   
-  qty_of_samples = len(samples)
-  indexes = range(0, qty_of_samples)
-  random.shuffle(indexes)
-  
-  index_partition_1 = int(round(
-      qty_of_samples * (1.0 - val_percentage - test_percentage)))
-  index_partition_2 = index_partition_1 + int(round(qty_of_samples * val_percentage))
-
   data_index = {'training': [], 'validation': [], 'testing': []}
-  data_index['training'] = samples[0:index_partition_1]
-  data_index['validation'] = samples[index_partition_1:index_partition_2]
-  data_index['testing'] = samples[index_partition_2:]
+
+  for sample in samples:
+    set_index = which_set(sample['file'], val_percentage, test_percentage)
+    data_index[set_index].append(sample)
 
   return data_index
 
