@@ -104,10 +104,6 @@ def cross_val_split(samples, val_percentage, test_percentage):
       qty_of_samples * (1.0 - val_percentage - test_percentage)))
   index_partition_2 = index_partition_1 + int(round(qty_of_samples * val_percentage))
 
-  print(qty_of_samples)
-  print(index_partition_1)
-  print(index_partition_2)
-
   data_index = {'training': [], 'validation': [], 'testing': []}
   data_index['training'] = samples[0:index_partition_1]
   data_index['validation'] = samples[index_partition_1:index_partition_2]
