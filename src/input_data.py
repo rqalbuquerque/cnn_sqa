@@ -92,14 +92,27 @@ def cross_val_split(samples, val_percentage, test_percentage):
     A dictionary with the partitions (training, validation and testing
     populated with samples.
   """
-  val_percentage = max(val_percentage, 0.000000001)
-  test_percentage = max(test_percentage, 0.000000001)
+
+  if(val_percentage < 0 or test_percentage < 0 or val_percentage + test_percentage > 1):
+    raise Exception('Invalid cross validation percentages!')
+  
+  qty_of_samples = len(samples)
+  indexes = range(0, qty_of_samples)
+  random.shuffle(indexes)
+  
+  index_partition_1 = int(round(
+      qty_of_samples * (1.0 - val_percentage - test_percentage)))
+  index_partition_2 = index_partition_1 + int(round(qty_of_samples * val_percentage))
+
+  print(qty_of_samples)
+  print(index_partition_1)
+  print(index_partition_2)
 
   data_index = {'training': [], 'validation': [], 'testing': []}
-  data_index['training'], val_test_samples = train_test_split(
-      samples, test_size=val_percentage + test_percentage)
-  data_index['validation'], data_index['testing'] = train_test_split(
-      val_test_samples, test_size=test_percentage/(val_percentage + test_percentage))
+  data_index['training'] = samples[0:index_partition_1]
+  data_index['validation'] = samples[index_partition_1:index_partition_2]
+  data_index['testing'] = samples[index_partition_2:]
+
   return data_index
 
 
