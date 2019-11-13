@@ -49,6 +49,13 @@ def set(configs={}):
         default=configs.get('enable_checkpoint_save', True),
         help='Flag to enable/disable checkpoint saving.')
 
+    # test result saving
+    parser.add_argument(
+        '--enable_test_save',
+        type=bool,
+        default=configs.get('enable_test_save', True),
+        help='Flag to enable/disable test saving.')
+
     # config Learning
     parser.add_argument(
         '--validation_percentage',

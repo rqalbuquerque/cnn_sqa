@@ -226,15 +226,17 @@ def main(argv):
     set_size = audio_processor.get_size_by_index('testing')
     weights = np.array([], dtype=np.float32)
     values = np.array([], dtype=np.float32)
+    test_rows = []
 
     for i in range(0, set_size, FLAGS.batch_size):
-        _, test_fingerprints, test_ground_truth = audio_processor.get_data_by_index(
+        testing_names, test_fingerprints, test_ground_truth = audio_processor.get_data_by_index(
             FLAGS.batch_size, i, 'testing', sess)
 
-        testing_summary, test_rmse = sess.run(
+        testing_summary, test_rmse, testing_scores = sess.run(
             [
                 merged_summaries,
-                loss
+                loss,
+                estimator
             ],
             feed_dict={
                 fingerprint_input: test_fingerprints,
@@ -244,12 +246,21 @@ def main(argv):
 
         weights = np.append(weights, test_fingerprints.shape[0] / set_size)
         values = np.append(values, test_rmse)
+        test_rows += [{'file': file_path, 'score': score}
+                       for (file_path, [score]) in zip(testing_names, testing_scores)]
         tf.logging.info('i=%d: rmse = %.2f' % (i, test_rmse))
 
     weighted_rmse = np.dot(values, weights)
     tf.logging.info('weighted rmse = %.2f (N=%d)' %
                     (weighted_rmse, set_size))
     tf.logging.info('***************** ********* *****************')
+
+    # Save test results 
+    if FLAGS.enable_test_save:
+      utils.create_dir(output_dir + '/test')
+      utils.save_dict_as_csv(
+        output_dir + '/test/' + FLAGS.model_architecture + '.csv',
+                             ',', ['file', 'score'], test_rows)
 
     # Save the model
     if FLAGS.enable_checkpoint_save:
