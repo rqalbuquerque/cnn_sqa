@@ -183,7 +183,7 @@ def main(argv):
         if (training_step % FLAGS.summary_step_interval) == 0:
             train_writer.add_summary(train_summary, training_step)
 
-        if (training_step % FLAGS.eval_step_interval) == 0 or (training_step == training_steps_max):
+        if (training_step % FLAGS.eval_step_interval) == 0 and (training_step < training_steps_max):
             tf.logging.info('***************** Validation ****************')
 
             set_size = audio_processor.get_size_by_index('validation')
@@ -222,6 +222,46 @@ def main(argv):
             if training_step < training_steps_max:
               tf.logging.info('"***************** Training *****************')
       
+    tf.logging.info('****************** Validation ******************')
+    set_size = audio_processor.get_size_by_index('validation')
+    weights = np.array([], dtype=np.float32)
+    values = np.array([], dtype=np.float32)
+    validation_rows = []
+
+    for i in range(0, set_size, FLAGS.batch_size):
+        validation_names, validation_fingerprints, validation_ground_truth = audio_processor.get_data_by_index(
+            FLAGS.batch_size, i, 'validation', sess)
+
+        validation_summary, validation_rmse, validation_scores = sess.run(
+            [
+                merged_summaries,
+                loss,
+                estimator
+            ],
+            feed_dict={
+                fingerprint_input: validation_fingerprints,
+                gt_input: validation_ground_truth,
+                phase_train: False
+            })
+
+        weights = np.append(weights, validation_fingerprints.shape[0] / set_size)
+        values = np.append(values, validation_rmse)
+        validation_rows += [{'file': file_path, 'score': score}
+                       for (file_path, [score]) in zip(validation_names, validation_scores)]
+        tf.logging.info('i=%d: rmse = %.2f' % (i, validation_rmse))
+
+    weighted_rmse = np.dot(values, weights)
+    tf.logging.info('weighted rmse = %.2f (N=%d)' %
+                    (weighted_rmse, set_size))
+
+    # Save validation results 
+    if FLAGS.enable_validation_save:
+      utils.create_dir(output_dir + '/validation')
+      utils.save_dict_as_csv(
+        output_dir + '/validation/validation_scores.csv',
+                             ',', ['file', 'score'], validation_rows)
+
+
     tf.logging.info('****************** Testing ******************')
     set_size = audio_processor.get_size_by_index('testing')
     weights = np.array([], dtype=np.float32)
@@ -256,10 +296,10 @@ def main(argv):
     tf.logging.info('***************** ********* *****************')
 
     # Save test results 
-    if FLAGS.enable_test_save:
-      utils.create_dir(output_dir + '/test')
+    if FLAGS.enable_testing_save:
+      utils.create_dir(output_dir + '/testing')
       utils.save_dict_as_csv(
-        output_dir + '/test/' + FLAGS.model_architecture + '.csv',
+        output_dir + '/testing/testing_scores.csv',
                              ',', ['file', 'score'], test_rows)
 
     # Save the model
