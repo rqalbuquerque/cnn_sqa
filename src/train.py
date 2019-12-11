@@ -183,7 +183,7 @@ def main(argv):
         if (training_step % FLAGS.summary_step_interval) == 0:
             train_writer.add_summary(train_summary, training_step)
 
-        if (training_step % FLAGS.eval_step_interval) == 0 and (training_step < training_steps_max):
+        if (training_step % FLAGS.eval_step_interval) == 0 or (training_step == training_steps_max):
             tf.logging.info('***************** Validation ****************')
 
             set_size = audio_processor.get_size_by_index('validation')
@@ -222,7 +222,7 @@ def main(argv):
             if training_step < training_steps_max:
               tf.logging.info('"***************** Training *****************')
       
-    tf.logging.info('****************** Validation ******************')
+    tf.logging.info('****************** Generating scores on validation set ******************')
     set_size = audio_processor.get_size_by_index('validation')
     weights = np.array([], dtype=np.float32)
     values = np.array([], dtype=np.float32)
@@ -262,7 +262,7 @@ def main(argv):
                              ',', ['file', 'score'], validation_rows)
 
 
-    tf.logging.info('****************** Testing ******************')
+    tf.logging.info('****************** Generating scores on testing set ******************')
     set_size = audio_processor.get_size_by_index('testing')
     weights = np.array([], dtype=np.float32)
     values = np.array([], dtype=np.float32)
