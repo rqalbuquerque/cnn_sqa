@@ -6,8 +6,7 @@ import tensorflow as tf
 from tensorflow.python.platform import test
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 
-import input_data
-import models
+from src.input_data import *
 
 class InputDataTest(test.TestCase):
   def _getWavData(self):
@@ -45,7 +44,7 @@ class InputDataTest(test.TestCase):
     for label in labels:
       for i in range(how_many):
         aug_samples[label].append(os.path.join(label, 'aug_some_audio_%d.wav' % i))
-    samples = input_data.load_samples_from_csv(os.path.join(root_dir, 'scores.csv'))
+    samples = load_samples_from_csv(os.path.join(root_dir, 'scores.csv'))
     for sample in samples:
       for label in labels: 
         sample.update({label: aug_samples[label].pop(0)})
@@ -80,7 +79,7 @@ class InputDataTest(test.TestCase):
       {'file': database + "/b/some_audio_0.wav"},
       {'file': database + "/c/some_audio_0.wav"}
     ]
-    audio_processor = input_data.AudioProcessor(self._model_settings())
+    audio_processor = AudioProcessor(self._model_settings())
     audio_processor.index_from_dir(database)
 
     self.assertEqual(3, audio_processor.get_size())
@@ -100,7 +99,7 @@ class InputDataTest(test.TestCase):
       {'file': database + "c/some_audio_0.wav", 'score': 1.0},
       {'file': database + "c/some_audio_1.wav", 'score': 2.0},
     ]
-    audio_processor = input_data.AudioProcessor(self._model_settings())
+    audio_processor = AudioProcessor(self._model_settings())
     audio_processor.index_from_csv(database, csv_path, 0.33, 0.0)
     training_index = audio_processor.get_index('training')
     validation_index = audio_processor.get_index('validation')
@@ -138,7 +137,7 @@ class InputDataTest(test.TestCase):
         {'file': database + "aug_2/aug_some_audio_2.wav", 'score': 1.0},
         {'file': database + "aug_2/aug_some_audio_3.wav", 'score': 2.0}
     ]
-    audio_processor = input_data.AudioProcessor(self._model_settings())
+    audio_processor = AudioProcessor(self._model_settings())
     audio_processor.index_from_csv(
         database, csv_path, 0.0, 0.0, ['aug_1', 'aug_2'])
     training_index = audio_processor.get_index('training')
@@ -163,7 +162,7 @@ class InputDataTest(test.TestCase):
     database, _ = self._basicConfig(["a", "b", "c"], 10)
 
     with self.cached_session() as sess:
-      audio_processor = input_data.AudioProcessor(self._model_settings())
+      audio_processor = AudioProcessor(self._model_settings())
       audio_processor.index_from_dir(database)
 
       result_names, result_data = audio_processor.get_data(5, 5, sess)
@@ -179,7 +178,7 @@ class InputDataTest(test.TestCase):
     database, csv_path = self._basicConfig(["a", "b", "c"], 10)
 
     with self.cached_session() as sess:
-      audio_processor = input_data.AudioProcessor(self._model_settings())
+      audio_processor = AudioProcessor(self._model_settings())
 
       audio_processor.index_from_csv(database, csv_path, 0.5, 0)
       result_names, result_data, result_scores = audio_processor.get_data_by_index(5, 3, "validation", sess)
@@ -193,6 +192,5 @@ class InputDataTest(test.TestCase):
       self.assertEqual(30, len(result_names))
       self.assertEqual(30, len(result_scores))
 
-  
 if __name__ == '__main__':
   tf.test.main()

@@ -3,15 +3,10 @@ from tensorflow.python.platform import test
 from tensorflow.python.platform import gfile
 from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 
-import datetime
 import os
 import csv
 
-import input_data
-import models
-import train
-import utils
-
+from src.train import *
 
 class DictStruct(object):
   def __init__(self, **entries):
@@ -85,7 +80,7 @@ class TrainTest(test.TestCase):
     gt = tf.constant([1.0,2.0,3.0,4.0])
     estimated = tf.constant([4.0,3.0,2.0,1.0])
     expected = 2.23606797749979
-    loss = train.apply_loss(gt, estimated)
+    loss = apply_loss(gt, estimated)
     with self.cached_session() as sess:
       sess.run(tf.global_variables_initializer())
       rmse = sess.run(loss)
@@ -101,7 +96,7 @@ class TrainTest(test.TestCase):
     self._saveWavFolders(database, ["a", "b", "c"], 10)
     self._saveCsvFile(database, ["a", "b", "c"], 10)
     flags = self._getDefaultFlags(database, csv_path, output_dir)
-    train.main([flags, 'test'])
+    main([flags, 'test'])
 
     self.assertTrue(gfile.Exists(os.path.join(output_dir, 'run-test/config.json')))
     self.assertTrue(gfile.Exists(os.path.join(output_dir, 'run-test/checkpoint/checkpoint')))

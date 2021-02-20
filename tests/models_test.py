@@ -1,10 +1,11 @@
 import tensorflow as tf
 from tensorflow.python.platform import test
-import models
+
+from src.models import *
 
 class ModelsTest(test.TestCase):
   def _modelSettings(self):
-    return models.prepare_model_settings(
+    return prepare_model_settings(
             sample_rate=16000,
             clip_duration_ms=1000,
             window_size_ms=20,
@@ -43,35 +44,35 @@ class ModelsTest(test.TestCase):
       }
     self.assertEqual(expected_settings, model_settings)
 
-  # def testBatchNormalization(self):
-  #   input_tensor = tf.constant([[[[1.], [2.], [3.], [4.], [5.]],
-  #                                [[1.], [2.], [3.], [4.], [5.]],
-  #                                [[1.], [2.], [3.], [4.], [5.]]]])
-  #   phase_train = tf.placeholder(tf.bool, name='phase_train')
-  #   batch_norm = models.batch_normalization(input_tensor, 1, phase_train)
-  #   with self.cached_session() as sess:
-  #     sess.run(tf.global_variables_initializer())
+  def testBatchNormalization(self):
+    input_tensor = tf.constant([[[[1.], [2.], [3.], [4.], [5.]],
+                                 [[1.], [2.], [3.], [4.], [5.]],
+                                 [[1.], [2.], [3.], [4.], [5.]]]])
+    phase_train = tf.placeholder(tf.bool, name='phase_train')
+    batch_norm = batch_normalization(input_tensor, 1, phase_train)
+    with self.cached_session() as sess:
+      sess.run(tf.global_variables_initializer())
 
-  #     print(list(sess.run(batch_norm,feed_dict={phase_train: True})))
+      print(list(sess.run(batch_norm,feed_dict={phase_train: True})))
 
-  #     print(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'batch_norm/beta:0')[0].eval(sess))
-  #     print(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'batch_norm/gamma:0')[0].eval(sess))
+      print(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'batch_norm/beta:0')[0].eval(sess))
+      print(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'batch_norm/gamma:0')[0].eval(sess))
       
-  #     batch_mean, batch_var = tf.nn.moments(input_tensor, [0, 1, 2], name='moments')
-  #     ema = tf.train.ExponentialMovingAverage(decay=0.99)
+      batch_mean, batch_var = tf.nn.moments(input_tensor, [0, 1, 2], name='moments')
+      ema = tf.train.ExponentialMovingAverage(decay=0.99)
       
-  #     mean, var = ema.average(batch_mean), ema.average(batch_var)
+      mean, var = ema.average(batch_mean), ema.average(batch_var)
 
-  #     print(sess.run([mean, var]))
-  #     print("mean: " + str(batch_mean))
-  #     print("var: " + str(batch_var))
+      print(sess.run([mean, var]))
+      print("mean: " + str(batch_mean))
+      print("var: " + str(batch_var))
 
   def testActivation(self):
     const = tf.constant([-2.5])
-    activation = models.activation(const, "relu")
-    self.assertEqual(activation.name, "relu:0")
-    self.assertEqual(activation.shape, (1,))
-    self.assertEqual(activation.dtype, tf.float32)
+    activation_func = activation(const, "relu")
+    self.assertEqual(activation_func.name, "relu:0")
+    self.assertEqual(activation_func.shape, (1,))
+    self.assertEqual(activation_func.dtype, tf.float32)
 
   def testConv2d(self):
     input_tensor = tf.constant([[[[1.],[2.],[3.],[4.],[5.]],
@@ -81,7 +82,7 @@ class ModelsTest(test.TestCase):
                  [[3., 3.], [7., 7.], [5., 5.]]]]
     with test.mock.patch('tensorflow.truncated_normal') as mock_truncated_normal:
       mock_truncated_normal.return_value = tf.ones((2, 2, 1, 2))
-      conv2d = models.conv_2d(input_tensor, 2, 2, 1, 2, 2)
+      conv2d = conv_2d(input_tensor, 2, 2, 1, 2, 2)
       with self.cached_session() as sess:
         sess.run(tf.global_variables_initializer())
         self.assertEqual(sess.graph.get_tensor_by_name('Const:0').shape, [1, 3, 5, 1])
@@ -95,7 +96,7 @@ class ModelsTest(test.TestCase):
     model_settings = self._modelSettings()
     fingerprint_input = tf.zeros(
         [1, model_settings["fingerprint_size"]], name='fingerprint_input')
-    estimator, phase_train = models.create_model(fingerprint_input, model_settings, "conv")
+    estimator, phase_train = create_model(fingerprint_input, model_settings, "conv")
     with self.cached_session() as sess:
       self.assertIsNotNone(sess.graph.get_tensor_by_name(estimator.name))
       self.assertIsNotNone(sess.graph.get_tensor_by_name(phase_train.name))

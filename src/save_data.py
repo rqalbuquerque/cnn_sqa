@@ -17,7 +17,6 @@ import tensorflow as tf
 from tensorflow.contrib.framework.python.ops import audio_ops
 from tensorflow.python.ops import io_ops
 
-
 def load_wav_file(filename):
     """Loads an audio file and returns a float PCM-encoded array of samples.
 
@@ -56,7 +55,6 @@ def save_wav_file(filename, wav_data, sample_rate):
                 wav_data_placeholder: np.reshape(wav_data, (-1, 1))
             })
 
-
 def save_spectrogram_mat(inputdir, outputdir):
     if os.path.exists(inputdir):
         if not os.path.exists(outputdir):
@@ -72,7 +70,6 @@ def save_spectrogram_mat(inputdir, outputdir):
                 adict = {}
                 adict['spectrogram'] = np.squeeze(spec, 0)
                 scipy.io.savemat(outputdir + "/" + name + ".mat", adict)
-
 
 def spectrogram_image_graph():
     wav_file, spectrogram = spectrogram_graph()
@@ -106,7 +103,6 @@ def spectrogram_image_graph():
     cast = tf.cast(grayscale, tf.uint8)
     return wav_file, tf.image.encode_png(cast)
 
-
 def spectrogram_graph():
     # Wav file name
     wav_file = tf.placeholder(tf.string)
@@ -124,7 +120,6 @@ def spectrogram_graph():
         waveform.audio, window_size=480, stride=240, magnitude_squared=True)
 
     return wav_file, spectrogram
-
 
 def spectrogram_graph_new():
     sample_rate = 16000
@@ -165,7 +160,6 @@ def spectrogram_graph_new():
 
     return wav_file, log_mel_spectrograms
 
-
 def feature_by_librosa(data, feature, sr):
     feat = np.abs(librosa.stft(data, n_fft=512, hop_length=128,
                                window=scipy.signal.windows.hann))
@@ -190,7 +184,6 @@ def feature_by_librosa(data, feature, sr):
         feat = librosa.feature.mfcc(S=librosa.power_to_db(feat))
 
     return feat
-
 
 def save_feature_images(inputdir, outputdir, feat):
     if os.path.exists(inputdir):

@@ -4,7 +4,7 @@ import tempfile
 import json
 import csv
 
-import utils
+from src.utils import *
 
 def _saveFile(name, content):
   tmp_file = tempfile.gettempdir() + '/' + name
@@ -42,7 +42,7 @@ class TestAddSuffixInFilename(unittest.TestCase):
     Test with file name with extension.
     """
     expected = './test/file_suffix.txt'
-    result = utils.add_suffix_in_filename('./test/file.txt', '_suffix')
+    result = add_suffix_in_filename('./test/file.txt', '_suffix')
     self.assertEqual(expected, result)
 
   def test_insert_without_extension(self):
@@ -50,7 +50,7 @@ class TestAddSuffixInFilename(unittest.TestCase):
     Test with file name without extension.
     """
     expected = './test/file_suffix'
-    result = utils.add_suffix_in_filename('./test/file', '_suffix')
+    result = add_suffix_in_filename('./test/file', '_suffix')
     self.assertEqual(expected, result)
 
 class TestReadJsonAsDict(unittest.TestCase):
@@ -59,7 +59,7 @@ class TestReadJsonAsDict(unittest.TestCase):
     Test with nonexistent file.
     """
     with self.assertRaises(IOError):
-      result = utils.read_json_as_dict("tests/fixtures/nonexistent.file")
+      result = read_json_as_dict("tests/fixtures/nonexistent.file")
 
   def test_invalid_file(self):
     """
@@ -69,7 +69,7 @@ class TestReadJsonAsDict(unittest.TestCase):
       'test_basic.py',
       'a={"str":"test","int":123,"float":1.24,"list":[1,2,3],"dict":{"key":"value"}}')
     with self.assertRaises(ValueError):
-      result = utils.read_json_as_dict(tmp_file)
+      result = read_json_as_dict(tmp_file)
     _removeFile(tmp_file)
 
   def test_valid_json(self):
@@ -78,7 +78,7 @@ class TestReadJsonAsDict(unittest.TestCase):
     """
     expected = {"str": "test", "int": 123, "float": 1.24, "list": [1,2,3], "dict": {"key": "value"}}
     tmp_file = _saveFile('test_basic.json', json.dumps(expected))
-    result = utils.read_json_as_dict(tmp_file)
+    result = read_json_as_dict(tmp_file)
     self.assertEqual(expected, result)
     _removeFile(tmp_file)
 
@@ -88,7 +88,7 @@ class TestReadCsvAsDict(unittest.TestCase):
     Test with nonexistent file.
     """
     with self.assertRaises(IOError):
-      result = utils.read_csv_as_dict("nonexistent.file", ',')
+      result = read_csv_as_dict("nonexistent.file", ',')
 
   def test_valid_file(self):
     """
@@ -100,7 +100,7 @@ class TestReadCsvAsDict(unittest.TestCase):
       {'col2': '2', 'col1': '1', 'label': 'list'} 
     ]
     tmp_file = _saveCsv('test_basic.csv', expected[0].keys(), expected)
-    result = utils.read_csv_as_dict(tmp_file, ',')
+    result = read_csv_as_dict(tmp_file, ',')
     self.assertEqual(expected, result)
     _removeFile(tmp_file)
 
@@ -110,7 +110,7 @@ class TestSaveDictAsCsv(unittest.TestCase):
     Test with invalid csv path.
     """
     with self.assertRaises(IOError):
-      utils.save_dict_as_csv("invalid_path/test.csv",
+      save_dict_as_csv("invalid_path/test.csv",
                              ';', [{'t1': 'test1'}], ['t1'])
       
   def test_unmatched_fields(self):
@@ -121,7 +121,7 @@ class TestSaveDictAsCsv(unittest.TestCase):
     fieldnames = ['t1', 't2']
     rows = [{'t1': 1, 't2': 'hey'}, {'t1': 2, 't3': 1.0}]
     with self.assertRaises(ValueError):
-      utils.save_dict_as_csv(temp_path, ';', fieldnames, rows)
+      save_dict_as_csv(temp_path, ';', fieldnames, rows)
 
   def test_valid_fields(self):
     """
@@ -132,7 +132,7 @@ class TestSaveDictAsCsv(unittest.TestCase):
     rows = [{'t1': 1, 't2': 'hey'},
             {'t1': 2, 't2': 2.3}, 
             {'t2': True}]
-    utils.save_dict_as_csv(temp_path, ';', fieldnames, rows)
+    save_dict_as_csv(temp_path, ';', fieldnames, rows)
     
     expected_rows = [{'t1': '1', 't2': 'hey'},
                      {'t1': '2', 't2': '2.3'},
@@ -145,7 +145,7 @@ class TestFindByExtension(unittest.TestCase):
     """
     Test without files by extension.
     """
-    result = utils.find_by_extension("./tests", "not_found_extension")
+    result = find_by_extension("./tests", "not_found_extension")
     self.assertEqual([], result)
 
   def test_valid_dir(self):
@@ -155,7 +155,7 @@ class TestFindByExtension(unittest.TestCase):
     tmp_file = _saveFile('test_basic.json', "")
     tmp_dir = os.path.dirname(tmp_file)
     expected = ['test_basic.json']
-    result = utils.find_by_extension(tmp_dir, "json")
+    result = find_by_extension(tmp_dir, "json")
     self.assertEqual(expected, result)
 
 if __name__ == '__main__':
